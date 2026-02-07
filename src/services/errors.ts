@@ -75,3 +75,22 @@ export function formatError(err: unknown, provider?: 'godaddy' | 'cloudflare'): 
 
   return message;
 }
+
+export function formatErrorPlain(err: unknown, provider?: 'godaddy' | 'cloudflare'): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const statusCode = (err as { statusCode?: number }).statusCode;
+
+  const hints = provider === 'godaddy'
+    ? GODADDY_HINTS
+    : provider === 'cloudflare'
+      ? CLOUDFLARE_HINTS
+      : [...GODADDY_HINTS, ...CLOUDFLARE_HINTS];
+
+  const hint = hints.find((h) => h.match(message, statusCode));
+
+  if (hint) {
+    return `${message} | Suggestion: ${hint.suggestion}`;
+  }
+
+  return message;
+}

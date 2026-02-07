@@ -34,7 +34,7 @@
     "url": "https://github.com/alexinslc/nodaddy.git"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "@clack/prompts": "^1.0.0",

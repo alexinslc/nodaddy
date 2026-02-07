@@ -61,19 +61,36 @@ export async function resumeCommand(): Promise<void> {
     return;
   }
 
-  // Load credentials
+  // Load and validate credentials
   const config = getConfig();
-  if (!config.godaddy?.apiKey || !config.cloudflare?.accountId) {
-    p.log.error('API credentials not found. Run `nodaddy migrate` to set them up.');
+  const gd = config.godaddy;
+  const cf = config.cloudflare;
+
+  if (!gd?.apiKey || !gd?.apiSecret) {
+    p.log.error('GoDaddy credentials not found. Run `nodaddy migrate` to set them up.');
     process.exit(1);
   }
 
-  const cf = config.cloudflare!;
+  if (!cf?.accountId) {
+    p.log.error('Cloudflare credentials not found. Run `nodaddy migrate` to set them up.');
+    process.exit(1);
+  }
+
+  if (cf.authType === 'global-key' && (!cf.apiKey || !cf.email)) {
+    p.log.error('Cloudflare Global API Key credentials incomplete. Run `nodaddy migrate` to reconfigure.');
+    process.exit(1);
+  }
+
+  if (cf.authType === 'token' && !cf.apiToken) {
+    p.log.error('Cloudflare API Token not found. Run `nodaddy migrate` to reconfigure.');
+    process.exit(1);
+  }
+
   const cfCreds = cf.authType === 'global-key'
     ? { authType: 'global-key' as const, apiKey: cf.apiKey!, email: cf.email!, accountId: cf.accountId }
     : { authType: 'token' as const, apiToken: cf.apiToken!, accountId: cf.accountId };
 
-  const godaddy = new GoDaddyClient(config.godaddy);
+  const godaddy = new GoDaddyClient(gd);
   const cloudflare = new CloudflareClient(cfCreds);
 
   const domainNames = resumable.map((d) => d.domain);

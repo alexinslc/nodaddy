@@ -7,7 +7,7 @@ import {
   migrateDnsRecords,
 } from './dns-migrator.js';
 import * as state from './state-manager.js';
-import { formatError } from './errors.js';
+import { formatError, formatErrorPlain } from './errors.js';
 
 export interface TransferProgress {
   domain: string;
@@ -191,8 +191,9 @@ export async function transferDomain(
       : rawMessage.includes('Cloudflare') ? 'cloudflare' as const
       : undefined;
     const message = formatError(err, provider);
+    const persistedError = formatErrorPlain(err, provider);
     state.updateDomainStatus(migrationId, domain, 'failed', {
-      error: rawMessage,
+      error: persistedError,
     });
     report(message, 'failed', message);
     throw err;
