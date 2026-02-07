@@ -8,6 +8,7 @@ import {
   confirmMigration,
 } from '../ui/wizard.js';
 import { selectDomains } from '../ui/domain-selector.js';
+import { previewDnsRecords } from '../ui/dns-preview.js';
 import { preflightCheck, type PreflightResult } from '../services/transfer-engine.js';
 import { createMigrationTasks } from '../ui/progress.js';
 import { createMigration } from '../services/state-manager.js';
@@ -101,15 +102,16 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     return;
   }
 
-  // Step 6: Migration options
-  const wizardOptions = await collectMigrationOptions();
-  const migrationOptions = {
-    migrateRecords: wizardOptions.migrateRecords,
-    dryRun: opts.dryRun ?? wizardOptions.dryRun,
-    proxied: wizardOptions.proxied,
-  };
+  // Step 6: DNS preview
+  const eligibleDomains = eligible.map((r) => r.domain);
+  await previewDnsRecords(godaddy, eligibleDomains);
 
-  // Step 7: Confirm
+  // Step 7: Migration options
+  const migrationOptions = await collectMigrationOptions(
+    opts.dryRun ? { dryRun: true } : undefined,
+  );
+
+  // Step 8: Confirm
   const confirmed = await confirmMigration(
     eligible.length,
     migrationOptions.dryRun,
@@ -119,8 +121,7 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     return;
   }
 
-  // Step 8: Execute migration
-  const eligibleDomains = eligible.map((r) => r.domain);
+  // Step 9: Execute migration
   const migration = createMigration(eligibleDomains);
 
   p.log.step(
@@ -143,7 +144,7 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     // Errors are handled per-task via exitOnError: false
   }
 
-  // Step 9: Summary
+  // Step 10: Summary
   const ctx = { results: new Map<string, { success: boolean; error?: string }>() };
   // Re-read state for accurate results
   const succeeded = eligibleDomains.filter(

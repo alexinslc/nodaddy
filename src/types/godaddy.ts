@@ -13,7 +13,7 @@ export const GoDaddyDomainSchema = z.object({
   renewable: z.boolean().optional(),
   transferProtected: z.boolean().optional(),
   createdAt: z.string().optional(),
-  nameServers: z.array(z.string()).optional(),
+  nameServers: z.array(z.string()).nullable().optional(),
 });
 
 export type GoDaddyDomain = z.infer<typeof GoDaddyDomainSchema>;

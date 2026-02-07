@@ -7,15 +7,21 @@ import { getConfig } from '../services/state-manager.js';
 export async function listCommand(): Promise<void> {
   p.intro(chalk.bgCyan.black(' nodaddy — list domains '));
 
+  const gdKey = process.env.GODADDY_API_KEY;
+  const gdSecret = process.env.GODADDY_API_SECRET;
   const config = getConfig();
-  if (!config.godaddy?.apiKey || !config.godaddy?.apiSecret) {
+
+  const apiKey = gdKey || config.godaddy?.apiKey;
+  const apiSecret = gdSecret || config.godaddy?.apiSecret;
+
+  if (!apiKey || !apiSecret) {
     p.log.error(
-      'GoDaddy credentials not configured. Run `nodaddy migrate` to set them up, or `nodaddy config`.',
+      'GoDaddy credentials not configured. Set GODADDY_API_KEY/GODADDY_API_SECRET env vars, or run `nodaddy migrate`.',
     );
     process.exit(1);
   }
 
-  const godaddy = new GoDaddyClient(config.godaddy);
+  const godaddy = new GoDaddyClient({ apiKey, apiSecret });
 
   const s = p.spinner();
   s.start('Fetching domains from GoDaddy...');
