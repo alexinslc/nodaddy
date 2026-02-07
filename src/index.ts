@@ -58,7 +58,7 @@ program
       const { getConfig } = await import('./services/state-manager.js');
       const config = getConfig();
       const hasGD = config.godaddy?.apiKey ? 'configured' : 'not set';
-      const hasCF = config.cloudflare?.apiToken ? 'configured' : 'not set';
+      const hasCF = config.cloudflare?.accountId ? `configured (${config.cloudflare.authType ?? 'token'})` : 'not set';
       console.log(`GoDaddy:    ${hasGD}`);
       console.log(`Cloudflare: ${hasCF}`);
       console.log(

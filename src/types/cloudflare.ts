@@ -44,7 +44,6 @@ export const CloudflareTransferStatusSchema = z.object({
 
 export type CloudflareTransferStatus = z.infer<typeof CloudflareTransferStatusSchema>;
 
-export interface CloudflareCredentials {
-  apiToken: string;
-  accountId: string;
-}
+export type CloudflareCredentials =
+  | { authType: 'token'; apiToken: string; accountId: string }
+  | { authType: 'global-key'; apiKey: string; email: string; accountId: string };

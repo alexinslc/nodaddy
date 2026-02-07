@@ -63,13 +63,18 @@ export async function resumeCommand(): Promise<void> {
 
   // Load credentials
   const config = getConfig();
-  if (!config.godaddy?.apiKey || !config.cloudflare?.apiToken) {
+  if (!config.godaddy?.apiKey || !config.cloudflare?.accountId) {
     p.log.error('API credentials not found. Run `nodaddy migrate` to set them up.');
     process.exit(1);
   }
 
+  const cf = config.cloudflare!;
+  const cfCreds = cf.authType === 'global-key'
+    ? { authType: 'global-key' as const, apiKey: cf.apiKey!, email: cf.email!, accountId: cf.accountId }
+    : { authType: 'token' as const, apiToken: cf.apiToken!, accountId: cf.accountId };
+
   const godaddy = new GoDaddyClient(config.godaddy);
-  const cloudflare = new CloudflareClient(config.cloudflare);
+  const cloudflare = new CloudflareClient(cfCreds);
 
   const domainNames = resumable.map((d) => d.domain);
   const tasks = createMigrationTasks(

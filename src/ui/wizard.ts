@@ -2,9 +2,11 @@ import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { getConfig, setConfig } from '../services/state-manager.js';
 
+import type { CloudflareCredentials } from '../types/cloudflare.js';
+
 export interface WizardCredentials {
   godaddy: { apiKey: string; apiSecret: string };
-  cloudflare: { apiToken: string; accountId: string };
+  cloudflare: CloudflareCredentials;
 }
 
 export interface MigrationWizardOptions {
@@ -18,8 +20,8 @@ export async function collectCredentials(): Promise<WizardCredentials> {
 
   // Check for existing stored credentials
   const hasGoDaddy = config.godaddy?.apiKey && config.godaddy?.apiSecret;
-  const hasCloudflare =
-    config.cloudflare?.apiToken && config.cloudflare?.accountId;
+  const hasCloudflare = config.cloudflare?.accountId &&
+    (config.cloudflare?.apiToken || config.cloudflare?.apiKey);
 
   let useStored = false;
   if (hasGoDaddy && hasCloudflare) {
@@ -35,19 +37,24 @@ export async function collectCredentials(): Promise<WizardCredentials> {
   }
 
   if (useStored && hasGoDaddy && hasCloudflare) {
+    const cf = config.cloudflare!;
+    const cloudflare: CloudflareCredentials = cf.authType === 'global-key'
+      ? { authType: 'global-key', apiKey: cf.apiKey!, email: cf.email!, accountId: cf.accountId }
+      : { authType: 'token', apiToken: cf.apiToken!, accountId: cf.accountId };
     return {
       godaddy: config.godaddy!,
-      cloudflare: config.cloudflare!,
+      cloudflare,
     };
   }
 
   p.note(
     'Get your GoDaddy API key at https://developer.godaddy.com/keys\n' +
-      'Get your Cloudflare API token at https://dash.cloudflare.com/profile/api-tokens',
+      'Get your Cloudflare credentials at https://dash.cloudflare.com/profile/api-tokens',
     'API Credentials Required',
   );
 
-  const credentials = await p.group(
+  // GoDaddy credentials
+  const gdCreds = await p.group(
     {
       gdKey: () =>
         p.text({
@@ -64,50 +71,113 @@ export async function collectCredentials(): Promise<WizardCredentials> {
             if (!v?.trim()) return 'API secret is required';
           },
         }),
-      cfToken: () =>
-        p.password({
-          message: 'Cloudflare API Token',
-          validate: (v) => {
-            if (!v?.trim()) return 'API token is required';
-          },
-        }),
-      cfAccountId: () =>
-        p.text({
-          message: 'Cloudflare Account ID',
-          placeholder: 'Found on any zone overview page',
-          validate: (v) => {
-            if (!v?.trim()) return 'Account ID is required';
-          },
-        }),
-      save: () =>
-        p.confirm({
-          message: 'Save credentials for future use?',
-          initialValue: true,
-        }),
     },
-    {
-      onCancel: () => {
-        p.cancel('Migration cancelled.');
-        process.exit(0);
-      },
-    },
+    { onCancel: () => { p.cancel('Migration cancelled.'); process.exit(0); } },
   );
+
+  // Cloudflare auth type
+  const cfAuthType = await p.select({
+    message: 'Cloudflare auth method',
+    options: [
+      { value: 'global-key', label: 'Global API Key', hint: 'recommended — supports registrar transfers' },
+      { value: 'token', label: 'Scoped API Token', hint: 'limited — no registrar transfer support' },
+    ],
+  });
+
+  if (p.isCancel(cfAuthType)) {
+    p.cancel('Migration cancelled.');
+    process.exit(0);
+  }
+
+  let cloudflare: CloudflareCredentials;
+
+  if (cfAuthType === 'global-key') {
+    const cfCreds = await p.group(
+      {
+        email: () =>
+          p.text({
+            message: 'Cloudflare account email',
+            placeholder: 'you@example.com',
+            validate: (v) => {
+              if (!v?.trim()) return 'Email is required';
+            },
+          }),
+        apiKey: () =>
+          p.password({
+            message: 'Cloudflare Global API Key',
+            validate: (v) => {
+              if (!v?.trim()) return 'API key is required';
+            },
+          }),
+        accountId: () =>
+          p.text({
+            message: 'Cloudflare Account ID',
+            placeholder: 'Found on any zone overview page',
+            validate: (v) => {
+              if (!v?.trim()) return 'Account ID is required';
+            },
+          }),
+      },
+      { onCancel: () => { p.cancel('Migration cancelled.'); process.exit(0); } },
+    );
+    cloudflare = {
+      authType: 'global-key',
+      apiKey: cfCreds.apiKey as string,
+      email: cfCreds.email as string,
+      accountId: cfCreds.accountId as string,
+    };
+  } else {
+    const cfCreds = await p.group(
+      {
+        apiToken: () =>
+          p.password({
+            message: 'Cloudflare API Token',
+            validate: (v) => {
+              if (!v?.trim()) return 'API token is required';
+            },
+          }),
+        accountId: () =>
+          p.text({
+            message: 'Cloudflare Account ID',
+            placeholder: 'Found on any zone overview page',
+            validate: (v) => {
+              if (!v?.trim()) return 'Account ID is required';
+            },
+          }),
+      },
+      { onCancel: () => { p.cancel('Migration cancelled.'); process.exit(0); } },
+    );
+    cloudflare = {
+      authType: 'token',
+      apiToken: cfCreds.apiToken as string,
+      accountId: cfCreds.accountId as string,
+    };
+  }
+
+  const save = await p.confirm({
+    message: 'Save credentials for future use?',
+    initialValue: true,
+  });
+
+  if (p.isCancel(save)) {
+    p.cancel('Migration cancelled.');
+    process.exit(0);
+  }
 
   const result: WizardCredentials = {
     godaddy: {
-      apiKey: credentials.gdKey as string,
-      apiSecret: credentials.gdSecret as string,
+      apiKey: gdCreds.gdKey as string,
+      apiSecret: gdCreds.gdSecret as string,
     },
-    cloudflare: {
-      apiToken: credentials.cfToken as string,
-      accountId: credentials.cfAccountId as string,
-    },
+    cloudflare,
   };
 
-  if (credentials.save) {
+  if (save) {
     setConfig({
       godaddy: result.godaddy,
-      cloudflare: result.cloudflare,
+      cloudflare: cloudflare.authType === 'global-key'
+        ? { authType: 'global-key', apiKey: cloudflare.apiKey, email: cloudflare.email, accountId: cloudflare.accountId }
+        : { authType: 'token', apiToken: cloudflare.apiToken, accountId: cloudflare.accountId },
     });
     p.log.success('Credentials saved.');
   }

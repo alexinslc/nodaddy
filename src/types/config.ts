@@ -6,7 +6,10 @@ export interface AppConfig {
     apiSecret: string;
   };
   cloudflare?: {
-    apiToken: string;
+    authType: 'token' | 'global-key';
+    apiToken?: string;
+    apiKey?: string;
+    email?: string;
     accountId: string;
   };
 }

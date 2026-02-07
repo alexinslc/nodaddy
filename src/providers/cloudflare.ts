@@ -17,6 +17,18 @@ export class CloudflareClient {
     this.credentials = credentials;
   }
 
+  private authHeaders(): Record<string, string> {
+    if (this.credentials.authType === 'global-key') {
+      return {
+        'X-Auth-Key': this.credentials.apiKey,
+        'X-Auth-Email': this.credentials.email,
+      };
+    }
+    return {
+      Authorization: `Bearer ${this.credentials.apiToken}`,
+    };
+  }
+
   private async request<T>(
     path: string,
     options: RequestInit = {},
@@ -26,7 +38,7 @@ export class CloudflareClient {
     const res = await fetch(`${BASE_URL}${path}`, {
       ...options,
       headers: {
-        Authorization: `Bearer ${this.credentials.apiToken}`,
+        ...this.authHeaders(),
         'Content-Type': 'application/json',
         ...options.headers,
       },
@@ -136,7 +148,10 @@ export class CloudflareClient {
 
   async verifyCredentials(): Promise<boolean> {
     try {
-      await this.request('/user/tokens/verify');
+      const endpoint = this.credentials.authType === 'global-key'
+        ? '/user'
+        : '/user/tokens/verify';
+      await this.request(endpoint);
       return true;
     } catch {
       return false;
