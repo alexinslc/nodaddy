@@ -10,6 +10,24 @@ export async function selectDomains(
     return domains.map((d) => d.domain);
   }
 
+  // Ask whether to select all or pick individually
+  const mode = await p.select({
+    message: `${domains.length} domains available — migrate all or choose?`,
+    options: [
+      { value: 'all', label: 'All domains' },
+      { value: 'pick', label: 'Let me choose' },
+    ],
+  });
+
+  if (p.isCancel(mode)) {
+    p.cancel('Migration cancelled.');
+    process.exit(0);
+  }
+
+  if (mode === 'all') {
+    return domains.map((d) => d.domain);
+  }
+
   const options = domains.map((d) => {
     const expires = d.expires
       ? new Date(d.expires).toLocaleDateString()
