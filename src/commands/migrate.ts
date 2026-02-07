@@ -102,12 +102,9 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
   }
 
   // Step 6: Migration options
-  const wizardOptions = await collectMigrationOptions();
-  const migrationOptions = {
-    migrateRecords: wizardOptions.migrateRecords,
-    dryRun: opts.dryRun ?? wizardOptions.dryRun,
-    proxied: wizardOptions.proxied,
-  };
+  const migrationOptions = await collectMigrationOptions(
+    opts.dryRun ? { dryRun: true } : undefined,
+  );
 
   // Step 7: Confirm
   const confirmed = await confirmMigration(

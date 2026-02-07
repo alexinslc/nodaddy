@@ -15,7 +15,40 @@ export interface MigrationWizardOptions {
   proxied: boolean;
 }
 
+function credentialsFromEnv(): WizardCredentials | null {
+  const gdKey = process.env.GODADDY_API_KEY;
+  const gdSecret = process.env.GODADDY_API_SECRET;
+  const cfAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+
+  if (!gdKey || !gdSecret || !cfAccountId) return null;
+
+  const cfApiKey = process.env.CLOUDFLARE_API_KEY;
+  const cfEmail = process.env.CLOUDFLARE_EMAIL;
+  const cfToken = process.env.CLOUDFLARE_API_TOKEN;
+
+  let cloudflare: CloudflareCredentials;
+  if (cfApiKey && cfEmail) {
+    cloudflare = { authType: 'global-key', apiKey: cfApiKey, email: cfEmail, accountId: cfAccountId };
+  } else if (cfToken) {
+    cloudflare = { authType: 'token', apiToken: cfToken, accountId: cfAccountId };
+  } else {
+    return null;
+  }
+
+  return {
+    godaddy: { apiKey: gdKey, apiSecret: gdSecret },
+    cloudflare,
+  };
+}
+
 export async function collectCredentials(): Promise<WizardCredentials> {
+  // Check env vars first
+  const envCreds = credentialsFromEnv();
+  if (envCreds) {
+    p.log.info('Using credentials from environment variables.');
+    return envCreds;
+  }
+
   const config = getConfig();
 
   // Check for existing stored credentials
@@ -185,7 +218,9 @@ export async function collectCredentials(): Promise<WizardCredentials> {
   return result;
 }
 
-export async function collectMigrationOptions(): Promise<MigrationWizardOptions> {
+export async function collectMigrationOptions(
+  overrides?: { dryRun?: boolean },
+): Promise<MigrationWizardOptions> {
   const options = await p.group(
     {
       migrateRecords: () =>
@@ -198,11 +233,6 @@ export async function collectMigrationOptions(): Promise<MigrationWizardOptions>
           message: 'Proxy records through Cloudflare (orange cloud)?',
           initialValue: false,
         }),
-      dryRun: () =>
-        p.confirm({
-          message: 'Dry run first? (preview without making changes)',
-          initialValue: false,
-        }),
     },
     {
       onCancel: () => {
@@ -212,10 +242,23 @@ export async function collectMigrationOptions(): Promise<MigrationWizardOptions>
     },
   );
 
+  let dryRun = overrides?.dryRun ?? false;
+  if (!overrides?.dryRun) {
+    const answer = await p.confirm({
+      message: 'Dry run first? (preview without making changes)',
+      initialValue: false,
+    });
+    if (p.isCancel(answer)) {
+      p.cancel('Migration cancelled.');
+      process.exit(0);
+    }
+    dryRun = answer as boolean;
+  }
+
   return {
     migrateRecords: options.migrateRecords as boolean,
     proxied: options.proxied as boolean,
-    dryRun: options.dryRun as boolean,
+    dryRun,
   };
 }
 

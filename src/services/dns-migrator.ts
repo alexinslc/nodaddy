@@ -16,7 +16,8 @@ function isGoDaddyParking(record: GoDaddyDnsRecord): boolean {
   }
   if (
     record.type === 'CNAME' &&
-    record.data.endsWith('.secureserver.net')
+    (record.data.endsWith('.secureserver.net') ||
+      record.data.endsWith('.domaincontrol.com'))
   ) {
     return true;
   }
@@ -68,7 +69,7 @@ function mapRecord(
       return {
         type: 'CNAME',
         name,
-        content: record.data,
+        content: record.data === '@' ? domain : record.data,
         ttl,
         proxied: false,
       };

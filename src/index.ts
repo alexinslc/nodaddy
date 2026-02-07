@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Command } from 'commander';
 import { migrateCommand } from './commands/migrate.js';
 import { listCommand } from './commands/list.js';
