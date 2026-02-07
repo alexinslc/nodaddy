@@ -15,7 +15,8 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "godaddy",
@@ -28,6 +29,10 @@
   ],
   "author": "Alex Lutz",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alexinslc/nodaddy.git"
+  },
   "engines": {
     "node": ">=18"
   },
