@@ -1,0 +1,47 @@
+{
+  "name": "@alexlutz/nodaddy",
+  "version": "1.0.0",
+  "description": "CLI tool for bulk domain transfers from GoDaddy to Cloudflare",
+  "type": "module",
+  "bin": {
+    "nodaddy": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "godaddy",
+    "cloudflare",
+    "domain",
+    "transfer",
+    "migration",
+    "dns",
+    "cli"
+  ],
+  "author": "Alex Lutz",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.0.0",
+    "chalk": "^5.6.2",
+    "cli-table3": "^0.6.5",
+    "commander": "^14.0.3",
+    "conf": "^15.1.0",
+    "listr2": "^10.1.0",
+    "ora": "^9.3.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}

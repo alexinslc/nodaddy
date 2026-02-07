@@ -1,0 +1,50 @@
+import { z } from 'zod/v4';
+
+export const GoDaddyDomainSchema = z.object({
+  domain: z.string(),
+  domainId: z.number(),
+  status: z.string(),
+  expires: z.string().optional(),
+  expirationProtected: z.boolean().optional(),
+  holdRegistrar: z.boolean().optional(),
+  locked: z.boolean().optional(),
+  privacy: z.boolean().optional(),
+  renewAuto: z.boolean().optional(),
+  renewable: z.boolean().optional(),
+  transferProtected: z.boolean().optional(),
+  createdAt: z.string().optional(),
+  nameServers: z.array(z.string()).optional(),
+});
+
+export type GoDaddyDomain = z.infer<typeof GoDaddyDomainSchema>;
+
+export const GoDaddyDnsRecordSchema = z.object({
+  type: z.string(),
+  name: z.string(),
+  data: z.string(),
+  ttl: z.number(),
+  priority: z.number().optional(),
+  weight: z.number().optional(),
+  port: z.number().optional(),
+  service: z.string().optional(),
+  protocol: z.string().optional(),
+});
+
+export type GoDaddyDnsRecord = z.infer<typeof GoDaddyDnsRecordSchema>;
+
+export const GoDaddyErrorSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  fields: z.array(z.object({
+    path: z.string(),
+    code: z.string(),
+    message: z.string().optional(),
+  })).optional(),
+});
+
+export type GoDaddyError = z.infer<typeof GoDaddyErrorSchema>;
+
+export interface GoDaddyCredentials {
+  apiKey: string;
+  apiSecret: string;
+}
