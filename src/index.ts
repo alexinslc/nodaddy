@@ -2,7 +2,9 @@ import { Command } from 'commander';
 import { migrateCommand } from './commands/migrate.js';
 import { listCommand } from './commands/list.js';
 import { statusCommand } from './commands/status.js';
+import { resumeCommand } from './commands/resume.js';
 import { clearConfig } from './services/state-manager.js';
+import { setupSignalHandlers } from './services/signal-handler.js';
 
 const program = new Command();
 
@@ -37,6 +39,13 @@ program
   });
 
 program
+  .command('resume')
+  .description('Resume an interrupted migration')
+  .action(async () => {
+    await resumeCommand();
+  });
+
+program
   .command('config')
   .description('Manage API credentials')
   .option('--reset', 'Clear stored credentials')
@@ -57,6 +66,8 @@ program
       );
     }
   });
+
+setupSignalHandlers();
 
 // Default to migrate if no command specified
 program.action(async () => {

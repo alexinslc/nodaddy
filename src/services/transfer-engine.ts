@@ -7,6 +7,7 @@ import {
   migrateDnsRecords,
 } from './dns-migrator.js';
 import * as state from './state-manager.js';
+import { formatError } from './errors.js';
 
 export interface TransferProgress {
   domain: string;
@@ -184,9 +185,14 @@ export async function transferDomain(
     state.updateDomainStatus(migrationId, domain, 'transfer_initiated');
     report('Transfer initiated', 'transfer_initiated');
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    // Detect provider from error type name
+    const provider = rawMessage.includes('GoDaddy') ? 'godaddy' as const
+      : rawMessage.includes('Cloudflare') ? 'cloudflare' as const
+      : undefined;
+    const message = formatError(err, provider);
     state.updateDomainStatus(migrationId, domain, 'failed', {
-      error: message,
+      error: rawMessage,
     });
     report(message, 'failed', message);
     throw err;
