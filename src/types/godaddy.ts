@@ -13,6 +13,7 @@ export const GoDaddyDomainSchema = z.object({
   renewable: z.boolean().optional(),
   transferProtected: z.boolean().optional(),
   createdAt: z.string().optional(),
+  authCode: z.string().optional(),
   nameServers: z.array(z.string()).nullable().optional(),
 });
 

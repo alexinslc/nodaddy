@@ -47,6 +47,27 @@ export class GoDaddyClient {
     return JSON.parse(text) as T;
   }
 
+  private async requestText(path: string): Promise<string> {
+    await godaddyRateLimiter.acquire();
+
+    const res = await fetch(`${BASE_URL}${path}`, {
+      headers: {
+        Authorization: `sso-key ${this.credentials.apiKey}:${this.credentials.apiSecret}`,
+      },
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new GoDaddyApiError(
+        `GoDaddy API error ${res.status}: ${body}`,
+        res.status,
+        body,
+      );
+    }
+
+    return res.text();
+  }
+
   async listDomains(): Promise<GoDaddyDomain[]> {
     const data = await this.request<unknown[]>(
       '/v1/domains?limit=1000&statuses=ACTIVE',
@@ -85,36 +106,33 @@ export class GoDaddyClient {
 
   async getAuthCode(domain: string): Promise<string> {
     assertValidDomain(domain);
-    // GoDaddy returns the auth code as a plain string for some TLDs,
-    // or as an array with a single string for others
-    const res = await fetch(
-      `${BASE_URL}/v1/domains/${domain}/transferAuthCode`,
-      {
-        headers: {
-          Authorization: `sso-key ${this.credentials.apiKey}:${this.credentials.apiSecret}`,
-        },
-      },
-    );
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new GoDaddyApiError(
-        `Failed to get auth code for ${domain}: ${body}`,
-        res.status,
-        body,
-      );
-    }
-
-    const text = await res.text();
-    // Try parsing as JSON first, fall back to plain text
+    // Try dedicated endpoint first — not all TLDs support it
     try {
-      const parsed = JSON.parse(text);
-      if (typeof parsed === 'string') return parsed;
-      if (Array.isArray(parsed) && typeof parsed[0] === 'string')
-        return parsed[0];
+      const text = await this.requestText(
+        `/v1/domains/${domain}/transferAuthCode`,
+      );
+      // Response may be plain string, JSON string, or JSON array
+      try {
+        const parsed = JSON.parse(text);
+        if (typeof parsed === 'string') return parsed;
+        if (Array.isArray(parsed) && typeof parsed[0] === 'string')
+          return parsed[0];
+      } catch {
+        // Not JSON — use as-is
+      }
       return text.replace(/^"|"$/g, '');
-    } catch {
-      return text.replace(/^"|"$/g, '');
+    } catch (err) {
+      if (err instanceof GoDaddyApiError && err.statusCode === 404) {
+        // Fall back to domain detail endpoint (auth code included for most TLDs)
+        const detail = await this.getDomainDetail(domain);
+        if (detail.authCode) return detail.authCode;
+        throw new GoDaddyApiError(
+          `No auth code available for ${domain} — check GoDaddy dashboard`,
+          404,
+          '',
+        );
+      }
+      throw err;
     }
   }
 
