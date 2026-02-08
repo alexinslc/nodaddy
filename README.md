@@ -117,14 +117,14 @@ For full transfers, use your **Global API Key** (found at the bottom of your [AP
 
 > **Why Global API Key?** Cloudflare's scoped API tokens don't currently support `Registrar Domains:Edit`, which is required to initiate domain transfers. If you're only migrating DNS records without transferring the domain, a scoped token works fine.
 
-You can also skip the interactive prompts by setting environment variables (or a `.env` file):
+You can also skip the interactive prompts by setting environment variables:
 
 ```bash
-GODADDY_API_KEY=your-key
-GODADDY_API_SECRET=your-secret
-CLOUDFLARE_API_KEY=your-global-api-key
-CLOUDFLARE_EMAIL=you@example.com
-CLOUDFLARE_ACCOUNT_ID=your-account-id
+export GODADDY_API_KEY=your-key
+export GODADDY_API_SECRET=your-secret
+export CLOUDFLARE_API_KEY=your-global-api-key
+export CLOUDFLARE_EMAIL=you@example.com
+export CLOUDFLARE_ACCOUNT_ID=your-account-id
 ```
 
 ## The migration pipeline
