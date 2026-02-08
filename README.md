@@ -77,6 +77,7 @@ nodaddy status             # Check transfer progress
 nodaddy resume             # Resume interrupted transfers
 nodaddy config             # View stored credentials
 nodaddy config --reset     # Clear stored credentials
+nodaddy cleanup            # Delete all stored credentials, contact info, and history
 ```
 
 ## How it works
@@ -92,13 +93,15 @@ For each domain, `nodaddy` automates 8 steps:
 7. **Nameservers** — Point domain to Cloudflare's nameservers
 8. **Transfer** — Initiate transfer at Cloudflare
 
-The tool collects registrant contact info once per session and uses it for all transfers. Track progress with `nodaddy status`.
+Registrant contact info is saved after first entry and reused on future runs — you won't have to type it again. Track progress with `nodaddy status`.
 
-Rate limiting, concurrent batch processing (8 domains at a time), and state persistence are built in. If anything interrupts, run `nodaddy resume`.
+Rate limiting, concurrent batch processing (8 domains at a time), and state persistence are built in. If anything interrupts or fails, run `nodaddy resume`. GoDaddy's API often returns temporary 422 "resource lock" errors after recent dashboard changes — the tool automatically retries with backoff (up to ~105 seconds) so you don't have to babysit it.
+
+When you're done transferring, run `nodaddy cleanup` to remove stored API credentials, contact info, and migration history from your machine.
 
 > **Note:** Domain transfers use undocumented Cloudflare Registrar API endpoints that are not part of Cloudflare's public API. These endpoints could change or break without notice. DNS migration uses the standard, documented API and is unaffected.
 
-GoDaddy parking records and forwarding junk are automatically skipped. DNS records are created with `proxied: false` by default so your traffic routing doesn't change unexpectedly.
+GoDaddy parking records and forwarding junk are automatically skipped. DNS records are created with `proxied: false` by default so your traffic routing doesn't change unexpectedly — the wizard gives you the option to enable Cloudflare proxying (orange cloud) if you want it.
 
 ## License
 
