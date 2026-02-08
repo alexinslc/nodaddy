@@ -19,13 +19,23 @@ A CLI tool that automates bulk domain transfers from GoDaddy to Cloudflare, beca
 
 > **Why Global API Key?** Cloudflare's scoped tokens don't support `Registrar Domains:Edit`, which is needed for transfers. A scoped token with `Zone:Edit` + `DNS:Edit` works if you only want DNS migration without transferring the domain.
 
-**Disable Domain Protection** — GoDaddy's Domain Protection blocks transfers and **cannot be removed via API**. You must disable it manually before running `nodaddy`:
+**Disable Domain Protection + Domain Privacy** — GoDaddy's Domain Protection + Domain Privacy block transfers and **cannot be removed via API due to 2FA requests**. You must disable both manually before running `nodaddy`:
 
-1. Go to [dcc.godaddy.com](https://dcc.godaddy.com)
-2. Select each domain you want to transfer
-3. Under "Secure", click the protection level section
-4. Downgrade to **None** (requires SMS or authenticator verification)
-5. Wait for the change to take effect (can take up to 48 hours, usually faster)
+### To Disable Domain Protection 🔓 
+
+1. To **Disable Domain Protection** go to: [dcc.godaddy.com/control/portfolio](https://dcc.godaddy.com/control/portfolio)
+2. Check the boxes next to the domains you want to transfer
+3. Click Protection Plans > Downgrade Protection Plans
+4. Select **No Protection** and Confirm Downgrade (requires SMS or authenticator verification)
+5. Wait for the change to take effect (can take up to 48 hours, usually ~15 minutes)
+
+### To Disable Domain Privacy 🔓
+
+1. To **Disable Domain Privacy** go to: [dcc.godaddy.com/control/portfolio](https://dcc.godaddy.com/control/portfolio)
+2. Check the boxes next to the domains you want to transfer
+3. Click Domain Privacy > Change to Off > Save
+4. Wait for the change to take effect (can take up to 48 hours, usually ~15 minutes)
+5. Now you **should** be ready to use `nodaddy`! 😄
 
 `nodaddy` will check for this during preflight and skip any domains that still have Domain Protection enabled.
 
