@@ -11,6 +11,11 @@ import { assertValidDomain } from '../services/validation.js';
 
 const BASE_URL = 'https://api.godaddy.com';
 
+// GoDaddy returns 422 "Resource is being used in another request" when
+// mutations overlap. Retry with exponential backoff.
+const RESOURCE_LOCK_MAX_RETRIES = 4;
+const RESOURCE_LOCK_BASE_DELAY_MS = 5_000;
+
 export class GoDaddyClient {
   private credentials: GoDaddyCredentials;
 
@@ -51,28 +56,39 @@ export class GoDaddyClient {
     path: string,
     options: RequestInit = {},
   ): Promise<void> {
-    await godaddyRateLimiter.acquire();
+    for (let attempt = 0; attempt <= RESOURCE_LOCK_MAX_RETRIES; attempt++) {
+      await godaddyRateLimiter.acquire();
 
-    const res = await fetch(`${BASE_URL}${path}`, {
-      ...options,
-      headers: {
-        Authorization: `sso-key ${this.credentials.apiKey}:${this.credentials.apiSecret}`,
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
+      const res = await fetch(`${BASE_URL}${path}`, {
+        ...options,
+        headers: {
+          Authorization: `sso-key ${this.credentials.apiKey}:${this.credentials.apiSecret}`,
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      });
 
-    if (!res.ok) {
+      if (res.ok) {
+        // Drain body to allow connection reuse
+        await res.text();
+        return;
+      }
+
       const body = await res.text();
+
+      // Retry on 422 resource lock with exponential backoff
+      if (res.status === 422 && body.includes('Resource is being used') && attempt < RESOURCE_LOCK_MAX_RETRIES) {
+        const delay = RESOURCE_LOCK_BASE_DELAY_MS * (attempt + 1);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+
       throw new GoDaddyApiError(
         `GoDaddy API error ${res.status}: ${body}`,
         res.status,
         body,
       );
     }
-
-    // Drain body to allow connection reuse
-    await res.text();
   }
 
   private async requestText(path: string): Promise<string> {
@@ -131,12 +147,17 @@ export class GoDaddyClient {
         method: 'PATCH',
         body: JSON.stringify({ locked: false, renewAuto: false }),
       });
-    } catch {
-      // If combined PATCH fails (e.g. renewAuto rejected), retry with just unlock
-      await this.requestVoid(`/v1/domains/${domain}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ locked: false }),
-      });
+    } catch (err) {
+      // If combined PATCH fails for a non-lock reason (e.g. renewAuto rejected),
+      // retry with just the critical unlock operation
+      if (err instanceof GoDaddyApiError && !err.responseBody.includes('Resource is being used')) {
+        await this.requestVoid(`/v1/domains/${domain}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ locked: false }),
+        });
+      } else {
+        throw err;
+      }
     }
   }
 
