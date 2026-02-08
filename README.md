@@ -80,12 +80,6 @@ Rate limiting, concurrent batch processing (8 domains at a time), and state pers
 
 GoDaddy parking records and forwarding junk are automatically skipped. DNS records are created with `proxied: false` by default so your traffic routing doesn't change unexpectedly.
 
-## Goodbye GoDaddy
-
-Thanks for the domains. Thanks for the Super Bowl ads. Thanks for charging me $20/year for WHOIS privacy that Cloudflare includes for free. Thanks for the checkout page with more upsells than a used car lot. It's been real, but it hasn't been fun.
-
-See you never.
-
 ## License
 
 MIT
