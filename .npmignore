@@ -1,0 +1,8 @@
+src/
+tests/
+docs/
+.env
+.env.*
+tsconfig.json
+tsup.config.ts
+.claude/

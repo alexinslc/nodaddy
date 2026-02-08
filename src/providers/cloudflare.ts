@@ -7,6 +7,7 @@ import {
   type CloudflareCredentials,
 } from '../types/cloudflare.js';
 import { cloudflareRateLimiter } from '../services/rate-limiter.js';
+import { assertValidDomain } from '../services/validation.js';
 
 const BASE_URL = 'https://api.cloudflare.com/client/v4';
 
@@ -74,6 +75,7 @@ export class CloudflareClient {
   }
 
   async createZone(domain: string): Promise<CloudflareZone> {
+    assertValidDomain(domain);
     const data = await this.request<unknown>('/zones', {
       method: 'POST',
       body: JSON.stringify({
@@ -116,6 +118,7 @@ export class CloudflareClient {
     domain: string,
     authCode: string,
   ): Promise<unknown> {
+    assertValidDomain(domain);
     return this.request(
       `/accounts/${this.credentials.accountId}/registrar/domains/${domain}/transfer`,
       {
@@ -126,6 +129,7 @@ export class CloudflareClient {
   }
 
   async getTransferStatus(domain: string): Promise<{ status: string }> {
+    assertValidDomain(domain);
     const data = await this.request<{ status: string }>(
       `/accounts/${this.credentials.accountId}/registrar/domains/${domain}`,
     );

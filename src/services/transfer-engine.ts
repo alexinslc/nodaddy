@@ -163,12 +163,10 @@ export async function transferDomain(
     state.updateDomainStatus(migrationId, domain, 'unlocked');
     report('Domain unlocked', 'unlocked');
 
-    // Step 5: Get auth code
+    // Step 5: Get auth code (kept in memory only — never persisted to disk)
     report('Fetching auth code', 'unlocked');
     const authCode = await godaddy.getAuthCode(domain);
-    state.updateDomainStatus(migrationId, domain, 'auth_obtained', {
-      authCode,
-    });
+    state.updateDomainStatus(migrationId, domain, 'auth_obtained');
     report('Auth code obtained', 'auth_obtained');
 
     // Step 6: Update nameservers at GoDaddy

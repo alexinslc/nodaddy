@@ -16,6 +16,7 @@ interface StoreSchema {
 
 const store = new Conf<StoreSchema>({
   projectName: 'nodaddy',
+  configFileMode: 0o600,
   defaults: {
     config: {},
     migrations: {},

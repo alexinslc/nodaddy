@@ -1,10 +1,10 @@
 {
-  "name": "@alexlutz/nodaddy",
+  "name": "nodaddy",
   "version": "1.0.0",
   "description": "CLI tool for bulk domain transfers from GoDaddy to Cloudflare",
   "type": "module",
   "bin": {
-    "nodaddy": "./dist/index.js"
+    "nodaddy": "dist/index.js"
   },
   "files": [
     "dist"
@@ -31,7 +31,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/alexinslc/nodaddy.git"
+    "url": "git+https://github.com/alexinslc/nodaddy.git"
   },
   "engines": {
     "node": ">=20"
@@ -42,13 +42,13 @@
     "cli-table3": "^0.6.5",
     "commander": "^14.0.3",
     "conf": "^15.1.0",
-    "dotenv": "^17.2.4",
     "listr2": "^10.1.0",
     "ora": "^9.3.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.2.1",
+    "dotenv": "^17.2.4",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"

@@ -30,7 +30,6 @@ export interface DomainMigrationState {
   dnsRecordsBackup: GoDaddyDnsRecord[];
   cloudflareZoneId?: string;
   cloudflareNameservers?: string[];
-  authCode?: string;
   error?: string;
   lastUpdated: string;
 }
