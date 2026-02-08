@@ -142,6 +142,18 @@ For each domain, `nodaddy` runs through this in order:
 
 All with rate limiting (GoDaddy: 60 req/min, Cloudflare: 1200 req/5min), concurrent batch processing (8 domains at a time), and state persistence so you can resume if anything interrupts.
 
+## Transfer costs
+
+Domain transfers aren't free — each transfer includes a **1-year renewal** charged at Cloudflare's at-cost pricing. The good news: Cloudflare doesn't mark up domain prices, so you're paying wholesale.
+
+| TLD | Cloudflare (at-cost) | GoDaddy (typical renewal) |
+|-----|---------------------|--------------------------|
+| .com | ~$9.15/yr | ~$22/yr |
+| .net | ~$10.50/yr | ~$20/yr |
+| .org | ~$10.00/yr | ~$22/yr |
+
+The transfer cost is billed to the payment method on file in your Cloudflare account. Make sure you have a card set up at [dash.cloudflare.com](https://dash.cloudflare.com) before running a non-dry-run migration. The CLI will show a cost estimate and ask for confirmation before initiating any transfers.
+
 ## DNS record support
 
 All the record types you care about:

@@ -266,6 +266,16 @@ export async function confirmMigration(
   domainCount: number,
   dryRun: boolean,
 ): Promise<boolean> {
+  if (!dryRun) {
+    p.note(
+      `Each domain transfer includes a 1-year renewal charged at\n` +
+        `Cloudflare's at-cost pricing (e.g. ~$9.15/year for .com).\n` +
+        `Payment is billed to the card on file in your Cloudflare account.\n\n` +
+        `Estimated cost: ${chalk.bold(domainCount)} domain${domainCount === 1 ? '' : 's'} × ~$9–15 each`,
+      'Transfer Cost',
+    );
+  }
+
   const action = dryRun ? 'preview migration for' : 'migrate';
   const confirmed = await p.confirm({
     message: `Proceed to ${action} ${chalk.bold(domainCount)} domain${domainCount === 1 ? '' : 's'}?`,
