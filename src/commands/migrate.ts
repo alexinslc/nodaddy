@@ -6,6 +6,7 @@ import {
   collectCredentials,
   collectMigrationOptions,
   collectRegistrantContact,
+  confirmTransferCost,
   confirmMigration,
 } from '../ui/wizard.js';
 import { selectDomains } from '../ui/domain-selector.js';
@@ -112,8 +113,17 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     opts.dryRun ? { dryRun: true } : undefined,
   );
 
-  // Step 8: Registrant contact (only for real transfers with Global API Key)
+  // Step 8: Transfer cost acknowledgment (before collecting personal info)
   const canTransfer = creds.cloudflare.authType === 'global-key';
+  if (!migrationOptions.dryRun && canTransfer) {
+    const costConfirmed = await confirmTransferCost(eligible.length);
+    if (!costConfirmed) {
+      p.outro('Migration cancelled.');
+      return;
+    }
+  }
+
+  // Step 9: Registrant contact (only for real transfers with Global API Key)
   let contact;
   if (migrationOptions.dryRun) {
     contact = undefined;
@@ -126,7 +136,7 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     contact = undefined;
   }
 
-  // Step 9: Confirm
+  // Step 10: Final confirm
   const confirmed = await confirmMigration(
     eligible.length,
     migrationOptions.dryRun,

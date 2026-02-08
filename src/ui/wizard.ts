@@ -347,23 +347,37 @@ export async function collectRegistrantContact(): Promise<RegistrantContact> {
   };
 }
 
+export async function confirmTransferCost(
+  domainCount: number,
+): Promise<boolean> {
+  p.note(
+    `Each domain transfer includes a 1-year renewal charged at\n` +
+      `Cloudflare's at-cost pricing. Cost varies by TLD — common\n` +
+      `examples: .com ~$9.15, .net ~$10.50, .org ~$10.00/year.\n` +
+      `Other TLDs may cost more. Check Cloudflare's pricing for details.\n\n` +
+      `Payment is billed to the card on file in your Cloudflare account.\n` +
+      `Domains to transfer: ${chalk.bold(domainCount)}`,
+    'Transfer Cost',
+  );
+
+  const confirmed = await p.confirm({
+    message: `I understand that ${chalk.bold(domainCount)} domain transfer${domainCount === 1 ? '' : 's'} will be charged to my Cloudflare account`,
+    initialValue: true,
+  });
+
+  if (p.isCancel(confirmed)) {
+    p.cancel('Migration cancelled.');
+    process.exit(0);
+  }
+
+  return confirmed as boolean;
+}
+
 export async function confirmMigration(
   domainCount: number,
   dryRun: boolean,
 ): Promise<boolean> {
-  if (!dryRun) {
-    p.note(
-      `Each domain transfer includes a 1-year renewal charged at\n` +
-        `Cloudflare's at-cost pricing. Cost varies by TLD — common\n` +
-        `examples: .com ~$9.15, .net ~$10.50, .org ~$10.00/year.\n` +
-        `Other TLDs may cost more. Check Cloudflare's pricing for details.\n\n` +
-        `Payment is billed to the card on file in your Cloudflare account.\n` +
-        `Domains to transfer: ${chalk.bold(domainCount)}`,
-      'Transfer Cost',
-    );
-  }
-
-  const action = dryRun ? 'preview migration for' : 'migrate';
+  const action = dryRun ? 'preview migration for' : 'start migration for';
   const confirmed = await p.confirm({
     message: `Proceed to ${action} ${chalk.bold(domainCount)} domain${domainCount === 1 ? '' : 's'}?`,
     initialValue: true,
