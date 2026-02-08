@@ -237,6 +237,53 @@ describe('mapGoDaddyToCloudflare', () => {
     });
   });
 
+  describe('proxied option', () => {
+    it('sets proxied: true on A records when enabled', () => {
+      const result = mapGoDaddyToCloudflare(
+        [record({ type: 'A', name: '@', data: '1.2.3.4' })],
+        DOMAIN,
+        true,
+      );
+      expect(result[0]!.proxied).toBe(true);
+    });
+
+    it('sets proxied: true on AAAA records when enabled', () => {
+      const result = mapGoDaddyToCloudflare(
+        [record({ type: 'AAAA', name: '@', data: '2001:db8::1' })],
+        DOMAIN,
+        true,
+      );
+      expect(result[0]!.proxied).toBe(true);
+    });
+
+    it('sets proxied: true on CNAME records when enabled', () => {
+      const result = mapGoDaddyToCloudflare(
+        [record({ type: 'CNAME', name: 'www', data: 'example.com' })],
+        DOMAIN,
+        true,
+      );
+      expect(result[0]!.proxied).toBe(true);
+    });
+
+    it('does not add proxied to MX records', () => {
+      const result = mapGoDaddyToCloudflare(
+        [record({ type: 'MX', name: '@', data: 'mail.example.com', priority: 10 })],
+        DOMAIN,
+        true,
+      );
+      expect(result[0]!.proxied).toBeUndefined();
+    });
+
+    it('does not add proxied to TXT records', () => {
+      const result = mapGoDaddyToCloudflare(
+        [record({ type: 'TXT', name: '@', data: 'v=spf1 ~all' })],
+        DOMAIN,
+        true,
+      );
+      expect(result[0]!.proxied).toBeUndefined();
+    });
+  });
+
   describe('TTL normalization', () => {
     it('converts low TTLs to automatic (1)', () => {
       const result = mapGoDaddyToCloudflare(

@@ -5,12 +5,14 @@ import { CloudflareClient } from '../providers/cloudflare.js';
 import {
   collectCredentials,
   collectMigrationOptions,
+  collectRegistrantContact,
+  confirmTransferCost,
   confirmMigration,
 } from '../ui/wizard.js';
 import { selectDomains } from '../ui/domain-selector.js';
 import { previewDnsRecords } from '../ui/dns-preview.js';
 import { preflightCheck, type PreflightResult } from '../services/transfer-engine.js';
-import { createMigrationTasks } from '../ui/progress.js';
+import { createMigrationTasks, type MigrationContext } from '../ui/progress.js';
 import { createMigration } from '../services/state-manager.js';
 import type { GoDaddyDomain } from '../types/godaddy.js';
 
@@ -74,10 +76,10 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     return;
   }
 
-  // Step 5: Preflight checks
+  // Step 5: Preflight checks (fetch full details to detect Domain Protection)
   s.start('Running preflight checks...');
-  const selectedDomainDetails = domains.filter((d) =>
-    selected.includes(d.domain),
+  const selectedDomainDetails = await Promise.all(
+    selected.map((d) => godaddy.getDomainDetail(d)),
   );
   const preflightResults: PreflightResult[] =
     selectedDomainDetails.map(preflightCheck);
@@ -111,7 +113,30 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     opts.dryRun ? { dryRun: true } : undefined,
   );
 
-  // Step 8: Confirm
+  // Step 8: Transfer cost acknowledgment (before collecting personal info)
+  const canTransfer = creds.cloudflare.authType === 'global-key';
+  if (!migrationOptions.dryRun && canTransfer) {
+    const costConfirmed = await confirmTransferCost(eligible.length);
+    if (!costConfirmed) {
+      p.outro('Migration cancelled.');
+      return;
+    }
+  }
+
+  // Step 9: Registrant contact (only for real transfers with Global API Key)
+  let contact;
+  if (migrationOptions.dryRun) {
+    contact = undefined;
+  } else if (canTransfer) {
+    contact = await collectRegistrantContact();
+  } else {
+    p.log.warn(
+      'Scoped API tokens do not support registrar transfers. DNS will be migrated but domains will not be transferred.',
+    );
+    contact = undefined;
+  }
+
+  // Step 10: Final confirm
   const confirmed = await confirmMigration(
     eligible.length,
     migrationOptions.dryRun,
@@ -121,7 +146,7 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     return;
   }
 
-  // Step 9: Execute migration
+  // Step 10: Execute migration
   const migration = createMigration(eligibleDomains);
 
   p.log.step(
@@ -136,30 +161,65 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     cloudflare,
     migration.id,
     migrationOptions,
+    contact,
   );
 
+  const ctx: MigrationContext = { results: new Map() };
   try {
-    await tasks.run({ results: new Map() });
+    await tasks.run(ctx);
   } catch {
     // Errors are handled per-task via exitOnError: false
   }
 
-  // Step 10: Summary
-  const ctx = { results: new Map<string, { success: boolean; error?: string }>() };
-  // Re-read state for accurate results
+  // Step 11: Summary
   const succeeded = eligibleDomains.filter(
-    (d) => !ctx.results.has(d) || ctx.results.get(d)!.success,
+    (d) => ctx.results.get(d)?.success,
+  );
+  const failed = eligibleDomains.filter(
+    (d) => !ctx.results.get(d)?.success,
   );
 
-  p.log.success(
-    `Migration ${migrationOptions.dryRun ? 'preview' : 'initiated'} for ${succeeded.length}/${eligible.length} domains`,
-  );
+  if (migrationOptions.dryRun) {
+    p.log.success(`Preview run finished for ${succeeded.length}/${eligible.length} domains`);
+  } else if (succeeded.length === eligible.length) {
+    p.log.success(`Migration run finished for ${succeeded.length}/${eligible.length} domains`);
+  } else if (succeeded.length > 0) {
+    p.log.warn(
+      `Migration run finished: ${chalk.green(succeeded.length)} succeeded, ${chalk.red(failed.length)} failed`,
+    );
+  } else {
+    p.log.error(
+      `Migration failed for all ${eligible.length} domain${eligible.length === 1 ? '' : 's'}`,
+    );
+  }
 
-  if (!migrationOptions.dryRun) {
+  if (!migrationOptions.dryRun && succeeded.length > 0) {
     p.note(
-      'Run `nodaddy status` to check transfer progress.\n' +
-        'Transfers typically take 1-5 days to complete.',
+      `Transfers initiated for ${succeeded.length} domain${succeeded.length === 1 ? '' : 's'}.\n\n` +
+        `Track progress:\n` +
+        `  ${chalk.cyan('nodaddy status')}\n\n` +
+        `  https://dash.cloudflare.com/?to=/:account/domains/transfer\n\n` +
+        `Transfers typically take 1-5 days to complete.\n\n` +
+        `When you're done transferring domains, run\n` +
+        `  ${chalk.cyan('nodaddy cleanup')}\n` +
+        `to remove stored credentials and personal info from this machine.`,
       'Next Steps',
+    );
+  }
+
+  if (!migrationOptions.dryRun && failed.length > 0) {
+    p.note(
+      `${failed.length} domain${failed.length === 1 ? '' : 's'} failed. Your progress has been saved.\n\n` +
+        `To retry failed domains:\n` +
+        `  ${chalk.cyan('nodaddy resume')}\n\n` +
+        `To see what went wrong:\n` +
+        `  ${chalk.cyan('nodaddy status')}\n\n` +
+        `Common fixes:\n` +
+        `  • "Resource is being used" — GoDaddy is still processing a\n` +
+        `    recent change. Wait a few minutes and run resume.\n` +
+        `  • Domain Protection — disable at https://dcc.godaddy.com\n` +
+        `  • Auth code issues — check your GoDaddy email inbox`,
+      'Failed Domains',
     );
   }
 

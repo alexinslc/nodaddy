@@ -28,18 +28,6 @@ export class RateLimiter {
 
     this.timestamps.push(now);
   }
-
-  get remaining(): number {
-    const now = Date.now();
-    const active = this.timestamps.filter(
-      (t) => now - t < this.config.windowMs,
-    );
-    return Math.max(0, this.config.requests - active.length);
-  }
-
-  get limit(): number {
-    return this.config.requests;
-  }
 }
 
 function sleep(ms: number): Promise<void> {

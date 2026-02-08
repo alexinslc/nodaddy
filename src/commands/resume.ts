@@ -8,7 +8,8 @@ import {
   getResumableDomains,
   getConfig,
 } from '../services/state-manager.js';
-import { createMigrationTasks } from '../ui/progress.js';
+import { collectRegistrantContact } from '../ui/wizard.js';
+import { createMigrationTasks, type MigrationContext } from '../ui/progress.js';
 
 export async function resumeCommand(): Promise<void> {
   p.intro(chalk.bgCyan.black(' nodaddy — resume migration '));
@@ -93,6 +94,18 @@ export async function resumeCommand(): Promise<void> {
   const godaddy = new GoDaddyClient(gd);
   const cloudflare = new CloudflareClient(cfCreds);
 
+  // Collect registrant contact — required by ICANN for transfer completion
+  // Scoped tokens can't do registrar transfers, so skip contact collection
+  let contact;
+  if (cf.authType === 'global-key') {
+    contact = await collectRegistrantContact();
+  } else {
+    p.log.warn(
+      'Scoped API tokens do not support registrar transfers. DNS will be migrated but domains will not be transferred.',
+    );
+    contact = undefined;
+  }
+
   const domainNames = resumable.map((d) => d.domain);
   const tasks = createMigrationTasks(
     domainNames,
@@ -100,15 +113,47 @@ export async function resumeCommand(): Promise<void> {
     cloudflare,
     migration.id,
     { dryRun: false, migrateRecords: true, proxied: false },
+    contact,
   );
 
+  const ctx: MigrationContext = { results: new Map() };
   try {
-    await tasks.run({ results: new Map() });
+    await tasks.run(ctx);
   } catch {
     // Errors handled per-task
   }
 
-  p.log.success('Resume complete.');
-  p.note('Run `nodaddy status` to check results.', 'Next Steps');
+  const succeeded = domainNames.filter((d) => ctx.results.get(d)?.success);
+  const failed = domainNames.filter((d) => !ctx.results.get(d)?.success);
+
+  if (failed.length === 0) {
+    p.log.success('All domains resumed successfully.');
+  } else if (succeeded.length > 0) {
+    p.log.warn(
+      `${chalk.green(succeeded.length)} succeeded, ${chalk.red(failed.length)} still failing`,
+    );
+  } else {
+    p.log.error(`All ${domainNames.length} domain${domainNames.length === 1 ? '' : 's'} failed again`);
+  }
+
+  if (failed.length > 0) {
+    p.note(
+      `${failed.length} domain${failed.length === 1 ? '' : 's'} still failing. Progress is saved.\n\n` +
+        `You can run ${chalk.cyan('nodaddy resume')} again after fixing the issue.\n\n` +
+        `Common fixes:\n` +
+        `  • "Resource is being used" — wait a few minutes and retry\n` +
+        `  • Domain Protection — disable at https://dcc.godaddy.com\n` +
+        `  • Auth code issues — check your GoDaddy email inbox`,
+      'Still Failing',
+    );
+  } else {
+    p.note(
+      `Track transfer progress:\n` +
+        `  ${chalk.cyan('nodaddy status')}\n\n` +
+        `  https://dash.cloudflare.com/?to=/:account/domains/transfer`,
+      'Next Steps',
+    );
+  }
+
   p.outro(chalk.green('Done!'));
 }

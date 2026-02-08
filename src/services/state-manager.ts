@@ -39,6 +39,14 @@ export function clearConfig(): void {
   store.set('config', {});
 }
 
+export function clearAll(): void {
+  store.clear();
+}
+
+export function getStorePath(): string {
+  return store.path;
+}
+
 // --- Migrations ---
 
 export function createMigration(domains: string[]): MigrationState {
@@ -107,6 +115,8 @@ export function updateDomainStatus(
 
   migration.domains[domain] = {
     ...domainState,
+    // Clear stale error when transitioning to a non-failed status
+    ...(status !== 'failed' ? { error: undefined } : {}),
     ...extra,
     status,
     lastUpdated: new Date().toISOString(),

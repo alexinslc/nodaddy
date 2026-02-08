@@ -2,10 +2,11 @@ import { Listr } from 'listr2';
 import type { GoDaddyClient } from '../providers/godaddy.js';
 import type { CloudflareClient } from '../providers/cloudflare.js';
 import type { MigrationOptions } from '../types/config.js';
+import type { RegistrantContact } from '../types/cloudflare.js';
 import { transferDomain } from '../services/transfer-engine.js';
 
-interface MigrationContext {
-  results: Map<string, { success: boolean; error?: string }>;
+export interface MigrationContext {
+  results: Map<string, { success: boolean; error?: string; authCode?: string }>;
 }
 
 export function createMigrationTasks(
@@ -14,23 +15,28 @@ export function createMigrationTasks(
   cloudflare: CloudflareClient,
   migrationId: string,
   options: MigrationOptions,
+  contact?: RegistrantContact,
 ): Listr<MigrationContext> {
   return new Listr<MigrationContext>(
     domains.map((domain) => ({
       title: domain,
       task: async (ctx, task) => {
         try {
-          await transferDomain(
+          const result = await transferDomain(
             godaddy,
             cloudflare,
             domain,
             migrationId,
             options,
+            contact,
             (progress) => {
               task.title = `${domain} — ${progress.step}`;
             },
           );
-          ctx.results.set(domain, { success: true });
+          ctx.results.set(domain, {
+            success: true,
+            authCode: result?.authCode,
+          });
           task.title = `${domain} ✓`;
         } catch (err) {
           const message =

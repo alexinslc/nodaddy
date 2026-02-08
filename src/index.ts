@@ -3,6 +3,7 @@ import { migrateCommand } from './commands/migrate.js';
 import { listCommand } from './commands/list.js';
 import { statusCommand } from './commands/status.js';
 import { resumeCommand } from './commands/resume.js';
+import { cleanupCommand } from './commands/cleanup.js';
 import { clearConfig } from './services/state-manager.js';
 import { setupSignalHandlers } from './services/signal-handler.js';
 
@@ -43,6 +44,13 @@ program
   .description('Resume an interrupted migration')
   .action(async () => {
     await resumeCommand();
+  });
+
+program
+  .command('cleanup')
+  .description('Delete all stored credentials, contact info, and migration history')
+  .action(async () => {
+    await cleanupCommand();
   });
 
 program

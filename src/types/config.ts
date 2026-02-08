@@ -1,4 +1,5 @@
 import type { GoDaddyDnsRecord } from './godaddy.js';
+import type { RegistrantContact } from './cloudflare.js';
 
 export interface AppConfig {
   godaddy?: {
@@ -12,6 +13,7 @@ export interface AppConfig {
     email?: string;
     accountId: string;
   };
+  registrantContact?: RegistrantContact;
 }
 
 export type DomainStatus =
