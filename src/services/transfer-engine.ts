@@ -23,6 +23,9 @@ export interface TransferProgress {
 
 export type ProgressCallback = (progress: TransferProgress) => void;
 
+// Delay after GoDaddy mutations to allow resource lock to clear
+const GODADDY_RESOURCE_LOCK_DELAY_MS = 5_000;
+
 // TLDs that Cloudflare Registrar does NOT support for transfer
 const UNSUPPORTED_TLDS = new Set([
   'uk',
@@ -170,11 +173,11 @@ export async function transferDomain(
       // 404 = Privacy not enabled — that's fine
       const msg = privacyErr instanceof Error ? privacyErr.message : '';
       if (!msg.includes('404') && !msg.includes('409')) {
-        report('Privacy removal failed (non-blocking)', 'dns_migrated');
+        report(`Privacy removal failed (non-blocking): ${msg}`, 'dns_migrated');
       }
     }
     // GoDaddy locks the resource while processing — wait before next mutation
-    await new Promise((r) => setTimeout(r, 5000));
+    await new Promise((r) => setTimeout(r, GODADDY_RESOURCE_LOCK_DELAY_MS));
 
     report('Unlocking + disabling auto-renew', 'dns_migrated');
     await godaddy.prepareForTransfer(domain);
@@ -183,7 +186,7 @@ export async function transferDomain(
     report('Waiting for unlock to propagate', 'dns_migrated');
     let unlocked = false;
     for (let attempt = 0; attempt < 6; attempt++) {
-      await new Promise((r) => setTimeout(r, 5000));
+      await new Promise((r) => setTimeout(r, GODADDY_RESOURCE_LOCK_DELAY_MS));
       const detail = await godaddy.getDomainDetail(domain);
       if (!detail.locked) {
         unlocked = true;
@@ -191,7 +194,9 @@ export async function transferDomain(
       }
     }
     if (!unlocked) {
-      throw new Error(`Domain ${domain} is still locked after unlock request`);
+      throw new Error(
+        `Domain ${domain} is still locked after prepareForTransfer (unlock + disable auto-renew)`,
+      );
     }
     state.updateDomainStatus(migrationId, domain, 'unlocked');
     report('Domain unlocked', 'unlocked');
@@ -225,7 +230,8 @@ export async function transferDomain(
       state.updateDomainStatus(migrationId, domain, 'transfer_initiated');
       report('Transfer initiated', 'transfer_initiated');
     } else {
-      report('Ready for transfer', 'ns_changed');
+      state.updateDomainStatus(migrationId, domain, 'completed');
+      report('DNS migrated (no registrar transfer — use Global API Key to enable)', 'completed');
     }
 
     return { authCode };

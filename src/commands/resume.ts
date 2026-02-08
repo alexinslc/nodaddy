@@ -95,7 +95,16 @@ export async function resumeCommand(): Promise<void> {
   const cloudflare = new CloudflareClient(cfCreds);
 
   // Collect registrant contact — required by ICANN for transfer completion
-  const contact = await collectRegistrantContact();
+  // Scoped tokens can't do registrar transfers, so skip contact collection
+  let contact;
+  if (cf.authType === 'global-key') {
+    contact = await collectRegistrantContact();
+  } else {
+    p.log.warn(
+      'Scoped API tokens do not support registrar transfers. DNS will be migrated but domains will not be transferred.',
+    );
+    contact = undefined;
+  }
 
   const domainNames = resumable.map((d) => d.domain);
   const tasks = createMigrationTasks(

@@ -70,6 +70,9 @@ export class GoDaddyClient {
         body,
       );
     }
+
+    // Drain body to allow connection reuse
+    await res.text();
   }
 
   private async requestText(path: string): Promise<string> {
@@ -123,10 +126,18 @@ export class GoDaddyClient {
 
   async prepareForTransfer(domain: string): Promise<void> {
     assertValidDomain(domain);
-    await this.requestVoid(`/v1/domains/${domain}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ locked: false, renewAuto: false }),
-    });
+    try {
+      await this.requestVoid(`/v1/domains/${domain}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ locked: false, renewAuto: false }),
+      });
+    } catch {
+      // If combined PATCH fails (e.g. renewAuto rejected), retry with just unlock
+      await this.requestVoid(`/v1/domains/${domain}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ locked: false }),
+      });
+    }
   }
 
   async getAuthCode(domain: string): Promise<string> {

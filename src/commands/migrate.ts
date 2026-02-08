@@ -112,10 +112,19 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     opts.dryRun ? { dryRun: true } : undefined,
   );
 
-  // Step 8: Registrant contact (only for real transfers)
-  const contact = migrationOptions.dryRun
-    ? undefined
-    : await collectRegistrantContact();
+  // Step 8: Registrant contact (only for real transfers with Global API Key)
+  const canTransfer = creds.cloudflare.authType === 'global-key';
+  let contact;
+  if (migrationOptions.dryRun) {
+    contact = undefined;
+  } else if (canTransfer) {
+    contact = await collectRegistrantContact();
+  } else {
+    p.log.warn(
+      'Scoped API tokens do not support registrar transfers. DNS will be migrated but domains will not be transferred.',
+    );
+    contact = undefined;
+  }
 
   // Step 9: Confirm
   const confirmed = await confirmMigration(
@@ -158,7 +167,7 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
   );
 
   p.log.success(
-    `Migration ${migrationOptions.dryRun ? 'preview' : 'completed'} for ${succeeded.length}/${eligible.length} domains`,
+    `Migration ${migrationOptions.dryRun ? 'preview' : 'run finished'} for ${succeeded.length}/${eligible.length} domains`,
   );
 
   if (!migrationOptions.dryRun && succeeded.length > 0) {
