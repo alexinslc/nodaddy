@@ -39,6 +39,14 @@ export function clearConfig(): void {
   store.set('config', {});
 }
 
+export function clearAll(): void {
+  store.clear();
+}
+
+export function getStorePath(): string {
+  return store.path;
+}
+
 // --- Migrations ---
 
 export function createMigration(domains: string[]): MigrationState {

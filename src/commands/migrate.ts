@@ -199,7 +199,10 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
         `Track progress:\n` +
         `  ${chalk.cyan('nodaddy status')}\n\n` +
         `  https://dash.cloudflare.com/?to=/:account/domains/transfer\n\n` +
-        `Transfers typically take 1-5 days to complete.`,
+        `Transfers typically take 1-5 days to complete.\n\n` +
+        `When you're done transferring domains, run\n` +
+        `  ${chalk.cyan('nodaddy cleanup')}\n` +
+        `to remove stored credentials and personal info from this machine.`,
       'Next Steps',
     );
   }
