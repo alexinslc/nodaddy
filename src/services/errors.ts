@@ -55,9 +55,18 @@ const CLOUDFLARE_HINTS: ErrorHint[] = [
     suggestion:
       'This TLD cannot be transferred to Cloudflare Registrar. DNS-only setup is still possible.',
   },
+  {
+    match: (msg) => msg.includes('did not become active'),
+    suggestion:
+      'Nameserver changes can take up to 48 hours to propagate. Run `nodaddy resume` to retry later.',
+  },
 ];
 
-export function formatError(err: unknown, provider?: 'godaddy' | 'cloudflare'): string {
+export function formatError(
+  err: unknown,
+  provider?: 'godaddy' | 'cloudflare',
+  plain = false,
+): string {
   const message = err instanceof Error ? err.message : String(err);
   const statusCode = (err as { statusCode?: number }).statusCode;
 
@@ -70,26 +79,9 @@ export function formatError(err: unknown, provider?: 'godaddy' | 'cloudflare'): 
   const hint = hints.find((h) => h.match(message, statusCode));
 
   if (hint) {
-    return `${message}\n  ${chalk.yellow('Suggestion:')} ${hint.suggestion}`;
-  }
-
-  return message;
-}
-
-export function formatErrorPlain(err: unknown, provider?: 'godaddy' | 'cloudflare'): string {
-  const message = err instanceof Error ? err.message : String(err);
-  const statusCode = (err as { statusCode?: number }).statusCode;
-
-  const hints = provider === 'godaddy'
-    ? GODADDY_HINTS
-    : provider === 'cloudflare'
-      ? CLOUDFLARE_HINTS
-      : [...GODADDY_HINTS, ...CLOUDFLARE_HINTS];
-
-  const hint = hints.find((h) => h.match(message, statusCode));
-
-  if (hint) {
-    return `${message} | Suggestion: ${hint.suggestion}`;
+    return plain
+      ? `${message} | Suggestion: ${hint.suggestion}`
+      : `${message}\n  ${chalk.yellow('Suggestion:')} ${hint.suggestion}`;
   }
 
   return message;

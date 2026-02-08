@@ -27,6 +27,7 @@ function isGoDaddyParking(record: GoDaddyDnsRecord): boolean {
 export function mapGoDaddyToCloudflare(
   records: GoDaddyDnsRecord[],
   domain: string,
+  proxied = false,
 ): Omit<CloudflareDnsRecord, 'id'>[] {
   const mapped: Omit<CloudflareDnsRecord, 'id'>[] = [];
 
@@ -36,7 +37,7 @@ export function mapGoDaddyToCloudflare(
     if (record.type === 'NS' && record.name === '@') continue;
     if (isGoDaddyParking(record)) continue;
 
-    const cfRecord = mapRecord(record, domain);
+    const cfRecord = mapRecord(record, domain, proxied);
     if (cfRecord) mapped.push(cfRecord);
   }
 
@@ -46,6 +47,7 @@ export function mapGoDaddyToCloudflare(
 function mapRecord(
   record: GoDaddyDnsRecord,
   domain: string,
+  proxied: boolean,
 ): Omit<CloudflareDnsRecord, 'id'> | null {
   // Convert GoDaddy "@" to full domain name
   const name =
@@ -62,7 +64,7 @@ function mapRecord(
         name,
         content: record.data,
         ttl,
-        proxied: false, // Safe default — don't change traffic routing
+        proxied,
       };
 
     case 'CNAME':
@@ -71,7 +73,7 @@ function mapRecord(
         name,
         content: record.data === '@' ? domain : record.data,
         ttl,
-        proxied: false,
+        proxied,
       };
 
     case 'MX':
@@ -152,13 +154,11 @@ export async function migrateDnsRecords(
   cloudflare: CloudflareClient,
   zoneId: string,
   records: Omit<CloudflareDnsRecord, 'id'>[],
-  onProgress?: (completed: number, total: number) => void,
 ): Promise<{ created: number; failed: Array<{ record: Omit<CloudflareDnsRecord, 'id'>; error: string }> }> {
   let created = 0;
   const failed: Array<{ record: Omit<CloudflareDnsRecord, 'id'>; error: string }> = [];
 
-  for (let i = 0; i < records.length; i++) {
-    const record = records[i]!;
+  for (const record of records) {
     try {
       await cloudflare.createDnsRecord(zoneId, record);
       created++;
@@ -171,7 +171,6 @@ export async function migrateDnsRecords(
         failed.push({ record, error: message });
       }
     }
-    onProgress?.(i + 1, records.length);
   }
 
   return { created, failed };

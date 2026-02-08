@@ -2,7 +2,7 @@ import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { getConfig, setConfig } from '../services/state-manager.js';
 
-import type { CloudflareCredentials } from '../types/cloudflare.js';
+import type { CloudflareCredentials, RegistrantContact } from '../types/cloudflare.js';
 
 export interface WizardCredentials {
   godaddy: { apiKey: string; apiSecret: string };
@@ -81,8 +81,11 @@ export async function collectCredentials(): Promise<WizardCredentials> {
   }
 
   p.note(
-    'Get your GoDaddy API key at https://developer.godaddy.com/keys\n' +
-      'Get your Cloudflare credentials at https://dash.cloudflare.com/profile/api-tokens',
+    'GoDaddy: Create a Production API key (not OTE/Test) at\n' +
+      '  https://developer.godaddy.com/keys\n\n' +
+      'Cloudflare: Use your Global API Key (bottom of page) at\n' +
+      '  https://dash.cloudflare.com/profile/api-tokens\n' +
+      '  Account ID is on any zone overview page.',
     'API Credentials Required',
   );
 
@@ -259,6 +262,88 @@ export async function collectMigrationOptions(
     migrateRecords: options.migrateRecords as boolean,
     proxied: options.proxied as boolean,
     dryRun,
+  };
+}
+
+export async function collectRegistrantContact(): Promise<RegistrantContact> {
+  p.note(
+    'ICANN requires registrant contact info for all domain transfers.\n' +
+      'Cloudflare enables free WHOIS privacy by default, so this\n' +
+      'information will not be publicly visible after the transfer.',
+    'Registrant Contact',
+  );
+
+  const contact = await p.group(
+    {
+      first_name: () =>
+        p.text({
+          message: 'First name',
+          validate: (v) => { if (!v?.trim()) return 'Required'; },
+        }),
+      last_name: () =>
+        p.text({
+          message: 'Last name',
+          validate: (v) => { if (!v?.trim()) return 'Required'; },
+        }),
+      email: () =>
+        p.text({
+          message: 'Email',
+          placeholder: 'you@example.com',
+          validate: (v) => { if (!v?.trim()) return 'Required'; },
+        }),
+      phone: () =>
+        p.text({
+          message: 'Phone',
+          placeholder: '+1.5551234567',
+          validate: (v) => { if (!v?.trim()) return 'Required'; },
+        }),
+      address: () =>
+        p.text({
+          message: 'Street address',
+          validate: (v) => { if (!v?.trim()) return 'Required'; },
+        }),
+      address2: () =>
+        p.text({
+          message: 'Address line 2 (optional)',
+          defaultValue: '',
+        }),
+      city: () =>
+        p.text({
+          message: 'City',
+          validate: (v) => { if (!v?.trim()) return 'Required'; },
+        }),
+      state: () =>
+        p.text({
+          message: 'State / Province',
+          validate: (v) => { if (!v?.trim()) return 'Required'; },
+        }),
+      zip: () =>
+        p.text({
+          message: 'Postal code',
+          validate: (v) => { if (!v?.trim()) return 'Required'; },
+        }),
+      country: () =>
+        p.text({
+          message: 'Country code',
+          placeholder: 'US',
+          validate: (v) => { if (!v?.trim()) return 'Required'; },
+        }),
+    },
+    { onCancel: () => { p.cancel('Migration cancelled.'); process.exit(0); } },
+  );
+
+  return {
+    first_name: contact.first_name as string,
+    last_name: contact.last_name as string,
+    organization: '',
+    address: contact.address as string,
+    address2: (contact.address2 as string) ?? '',
+    city: contact.city as string,
+    state: contact.state as string,
+    zip: contact.zip as string,
+    country: contact.country as string,
+    phone: contact.phone as string,
+    email: contact.email as string,
   };
 }
 

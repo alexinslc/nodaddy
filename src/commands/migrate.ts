@@ -5,6 +5,7 @@ import { CloudflareClient } from '../providers/cloudflare.js';
 import {
   collectCredentials,
   collectMigrationOptions,
+  collectRegistrantContact,
   confirmMigration,
 } from '../ui/wizard.js';
 import { selectDomains } from '../ui/domain-selector.js';
@@ -74,10 +75,10 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     return;
   }
 
-  // Step 5: Preflight checks
+  // Step 5: Preflight checks (fetch full details to detect Domain Protection)
   s.start('Running preflight checks...');
-  const selectedDomainDetails = domains.filter((d) =>
-    selected.includes(d.domain),
+  const selectedDomainDetails = await Promise.all(
+    selected.map((d) => godaddy.getDomainDetail(d)),
   );
   const preflightResults: PreflightResult[] =
     selectedDomainDetails.map(preflightCheck);
@@ -111,7 +112,12 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     opts.dryRun ? { dryRun: true } : undefined,
   );
 
-  // Step 8: Confirm
+  // Step 8: Registrant contact (only for real transfers)
+  const contact = migrationOptions.dryRun
+    ? undefined
+    : await collectRegistrantContact();
+
+  // Step 9: Confirm
   const confirmed = await confirmMigration(
     eligible.length,
     migrationOptions.dryRun,
@@ -121,7 +127,7 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     return;
   }
 
-  // Step 9: Execute migration
+  // Step 10: Execute migration
   const migration = createMigration(eligibleDomains);
 
   p.log.step(
@@ -136,6 +142,7 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     cloudflare,
     migration.id,
     migrationOptions,
+    contact,
   );
 
   const ctx: MigrationContext = { results: new Map() };
@@ -145,29 +152,21 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     // Errors are handled per-task via exitOnError: false
   }
 
-  // Step 10: Summary
+  // Step 11: Summary
   const succeeded = eligibleDomains.filter(
     (d) => ctx.results.get(d)?.success,
   );
 
   p.log.success(
-    `Migration ${migrationOptions.dryRun ? 'preview' : 'prepared'} for ${succeeded.length}/${eligible.length} domains`,
+    `Migration ${migrationOptions.dryRun ? 'preview' : 'completed'} for ${succeeded.length}/${eligible.length} domains`,
   );
 
   if (!migrationOptions.dryRun && succeeded.length > 0) {
-    // Show auth codes for completing transfers in Cloudflare dashboard
-    const authLines = succeeded
-      .map((d) => {
-        const authCode = ctx.results.get(d)?.authCode;
-        return authCode ? `  ${d}: ${authCode}` : `  ${d}: (no auth code)`;
-      })
-      .join('\n');
-
     p.note(
-      `DNS migrated, domains unlocked, nameservers updated.\n` +
-        `Complete the transfer in the Cloudflare dashboard:\n\n` +
+      `Transfers initiated for ${succeeded.length} domain${succeeded.length === 1 ? '' : 's'}.\n\n` +
+        `Track progress:\n` +
+        `  ${chalk.cyan('nodaddy status')}\n\n` +
         `  https://dash.cloudflare.com/?to=/:account/domains/transfer\n\n` +
-        `Auth codes:\n${authLines}\n\n` +
         `Transfers typically take 1-5 days to complete.`,
       'Next Steps',
     );

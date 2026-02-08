@@ -8,6 +8,7 @@ import {
   getResumableDomains,
   getConfig,
 } from '../services/state-manager.js';
+import { collectRegistrantContact } from '../ui/wizard.js';
 import { createMigrationTasks } from '../ui/progress.js';
 
 export async function resumeCommand(): Promise<void> {
@@ -93,6 +94,9 @@ export async function resumeCommand(): Promise<void> {
   const godaddy = new GoDaddyClient(gd);
   const cloudflare = new CloudflareClient(cfCreds);
 
+  // Collect registrant contact — required by ICANN for transfer completion
+  const contact = await collectRegistrantContact();
+
   const domainNames = resumable.map((d) => d.domain);
   const tasks = createMigrationTasks(
     domainNames,
@@ -100,6 +104,7 @@ export async function resumeCommand(): Promise<void> {
     cloudflare,
     migration.id,
     { dryRun: false, migrateRecords: true, proxied: false },
+    contact,
   );
 
   try {

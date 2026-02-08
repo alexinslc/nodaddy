@@ -2,6 +2,7 @@ import { Listr } from 'listr2';
 import type { GoDaddyClient } from '../providers/godaddy.js';
 import type { CloudflareClient } from '../providers/cloudflare.js';
 import type { MigrationOptions } from '../types/config.js';
+import type { RegistrantContact } from '../types/cloudflare.js';
 import { transferDomain } from '../services/transfer-engine.js';
 
 export interface MigrationContext {
@@ -14,6 +15,7 @@ export function createMigrationTasks(
   cloudflare: CloudflareClient,
   migrationId: string,
   options: MigrationOptions,
+  contact?: RegistrantContact,
 ): Listr<MigrationContext> {
   return new Listr<MigrationContext>(
     domains.map((domain) => ({
@@ -26,6 +28,7 @@ export function createMigrationTasks(
             domain,
             migrationId,
             options,
+            contact,
             (progress) => {
               task.title = `${domain} — ${progress.step}`;
             },

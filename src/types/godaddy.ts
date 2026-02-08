@@ -33,18 +33,6 @@ export const GoDaddyDnsRecordSchema = z.object({
 
 export type GoDaddyDnsRecord = z.infer<typeof GoDaddyDnsRecordSchema>;
 
-export const GoDaddyErrorSchema = z.object({
-  code: z.string(),
-  message: z.string(),
-  fields: z.array(z.object({
-    path: z.string(),
-    code: z.string(),
-    message: z.string().optional(),
-  })).optional(),
-});
-
-export type GoDaddyError = z.infer<typeof GoDaddyErrorSchema>;
-
 export interface GoDaddyCredentials {
   apiKey: string;
   apiSecret: string;

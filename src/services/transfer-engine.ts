@@ -2,12 +2,13 @@ import type { GoDaddyClient } from '../providers/godaddy.js';
 import type { CloudflareClient } from '../providers/cloudflare.js';
 import type { GoDaddyDomain } from '../types/godaddy.js';
 import type { MigrationOptions, DomainStatus } from '../types/config.js';
+import type { RegistrantContact } from '../types/cloudflare.js';
 import {
   mapGoDaddyToCloudflare,
   migrateDnsRecords,
 } from './dns-migrator.js';
 import * as state from './state-manager.js';
-import { formatError, formatErrorPlain } from './errors.js';
+import { formatError } from './errors.js';
 
 export interface TransferResult {
   authCode: string;
@@ -51,7 +52,9 @@ export function preflightCheck(domain: GoDaddyDomain): PreflightResult {
 
   // Check status
   if (domain.status !== 'ACTIVE') {
-    reasons.push(`Status is ${domain.status}, must be ACTIVE`);
+    reasons.push(
+      `Status is ${domain.status} — domain must be ACTIVE to transfer. Check your GoDaddy dashboard for holds or suspensions.`,
+    );
   }
 
   // Check domain age (60-day ICANN lock)
@@ -60,8 +63,9 @@ export function preflightCheck(domain: GoDaddyDomain): PreflightResult {
     const daysSinceCreation =
       (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24);
     if (daysSinceCreation < 60) {
+      const daysRemaining = Math.ceil(60 - daysSinceCreation);
       reasons.push(
-        `Domain is only ${Math.floor(daysSinceCreation)} days old (60-day minimum)`,
+        `Domain is only ${Math.floor(daysSinceCreation)} days old — ICANN requires 60 days before transfer. Try again in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}.`,
       );
     }
   }
@@ -69,7 +73,16 @@ export function preflightCheck(domain: GoDaddyDomain): PreflightResult {
   // Check TLD support
   const tld = domain.domain.split('.').slice(1).join('.');
   if (UNSUPPORTED_TLDS.has(tld)) {
-    reasons.push(`TLD .${tld} is not supported by Cloudflare Registrar`);
+    reasons.push(
+      `TLD .${tld} is not supported by Cloudflare Registrar — see https://www.cloudflare.com/tld-policies/ for supported TLDs`,
+    );
+  }
+
+  // Check Domain Protection (cannot be disabled via API — requires dashboard identity verification)
+  if (domain.transferProtected) {
+    reasons.push(
+      'Domain Protection is enabled — disable at https://dcc.godaddy.com → select domain → Secure → downgrade to None (requires identity verification)',
+    );
   }
 
   return {
@@ -85,6 +98,7 @@ export async function transferDomain(
   domain: string,
   migrationId: string,
   options: MigrationOptions,
+  contact?: RegistrantContact,
   onProgress?: ProgressCallback,
 ): Promise<TransferResult | void> {
   const report = (step: string, status: DomainStatus, error?: string) => {
@@ -133,7 +147,7 @@ export async function transferDomain(
     // Step 3: Migrate DNS records
     if (options.migrateRecords) {
       report('Migrating DNS records', 'pending');
-      const cfRecords = mapGoDaddyToCloudflare(dnsRecords, domain);
+      const cfRecords = mapGoDaddyToCloudflare(dnsRecords, domain, options.proxied);
       const result = await migrateDnsRecords(cloudflare, zoneId, cfRecords);
       if (result.failed.length > 0) {
         report(
@@ -145,22 +159,38 @@ export async function transferDomain(
     state.updateDomainStatus(migrationId, domain, 'dns_migrated');
     report('DNS migrated', 'dns_migrated');
 
-    // Step 4: Prepare GoDaddy domain for transfer
-    report('Removing privacy', 'dns_migrated');
+    // Step 4: Remove privacy if still enabled
+    // Note: WHOIS data may be briefly public during transfer (1-5 days).
+    // Cloudflare re-enables privacy after transfer completes (privacy: true in request).
+    report('Removing WHOIS privacy', 'dns_migrated');
     try {
       await godaddy.removePrivacy(domain);
-      // Brief delay — GoDaddy locks the resource while processing mutations
-      await new Promise((r) => setTimeout(r, 2000));
-    } catch {
-      // Privacy might not be enabled — that's OK
+    } catch (privacyErr) {
+      // 409 = Free DBP (can't DELETE, but privacy doesn't block transfer)
+      // 404 = Privacy not enabled — that's fine
+      const msg = privacyErr instanceof Error ? privacyErr.message : '';
+      if (!msg.includes('404') && !msg.includes('409')) {
+        report('Privacy removal failed (non-blocking)', 'dns_migrated');
+      }
     }
+    // GoDaddy locks the resource while processing — wait before next mutation
+    await new Promise((r) => setTimeout(r, 5000));
 
     report('Unlocking + disabling auto-renew', 'dns_migrated');
     await godaddy.prepareForTransfer(domain);
 
-    // Verify unlock
-    const detail = await godaddy.getDomainDetail(domain);
-    if (detail.locked) {
+    // Verify unlock — GoDaddy processes this async, so poll
+    report('Waiting for unlock to propagate', 'dns_migrated');
+    let unlocked = false;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      const detail = await godaddy.getDomainDetail(domain);
+      if (!detail.locked) {
+        unlocked = true;
+        break;
+      }
+    }
+    if (!unlocked) {
       throw new Error(`Domain ${domain} is still locked after unlock request`);
     }
     state.updateDomainStatus(migrationId, domain, 'unlocked');
@@ -180,7 +210,24 @@ export async function transferDomain(
       report('Nameservers updated', 'ns_changed');
     }
 
-    report('Ready for transfer', 'ns_changed');
+    // Step 7: Wait for Cloudflare zone to become active
+    if (contact) {
+      report('Waiting for zone activation (may take a few minutes)', 'ns_changed');
+      await cloudflare.waitForZoneActive(zoneId);
+
+      // Step 8: Validate auth code at Cloudflare
+      report('Validating auth code', 'ns_changed');
+      await cloudflare.checkAuthCode(domain, authCode);
+
+      // Step 9: Initiate transfer
+      report('Initiating transfer', 'ns_changed');
+      await cloudflare.initiateTransfer(zoneId, domain, authCode, contact);
+      state.updateDomainStatus(migrationId, domain, 'transfer_initiated');
+      report('Transfer initiated', 'transfer_initiated');
+    } else {
+      report('Ready for transfer', 'ns_changed');
+    }
+
     return { authCode };
   } catch (err) {
     const rawMessage = err instanceof Error ? err.message : String(err);
@@ -189,7 +236,7 @@ export async function transferDomain(
       : rawMessage.includes('Cloudflare') ? 'cloudflare' as const
       : undefined;
     const message = formatError(err, provider);
-    const persistedError = formatErrorPlain(err, provider);
+    const persistedError = formatError(err, provider, true);
     state.updateDomainStatus(migrationId, domain, 'failed', {
       error: persistedError,
     });

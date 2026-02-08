@@ -5,6 +5,7 @@ import {
   type CloudflareZone,
   type CloudflareDnsRecord,
   type CloudflareCredentials,
+  type RegistrantContact,
 } from '../types/cloudflare.js';
 import { cloudflareRateLimiter } from '../services/rate-limiter.js';
 import { assertValidDomain } from '../services/validation.js';
@@ -55,7 +56,7 @@ export class CloudflareClient {
     }
 
     const text = await res.text();
-    if (!text) return undefined as T;
+    if (!text) throw new Error('Expected JSON response but got empty body');
 
     const json = JSON.parse(text) as {
       success: boolean;
@@ -119,35 +120,6 @@ export class CloudflareClient {
     return CloudflareDnsRecordSchema.parse(data);
   }
 
-  async listDnsRecords(zoneId: string): Promise<CloudflareDnsRecord[]> {
-    const data = await this.request<unknown[]>(
-      `/zones/${zoneId}/dns_records?per_page=100`,
-    );
-    return z.array(CloudflareDnsRecordSchema).parse(data);
-  }
-
-  async getTransferStatus(domain: string): Promise<{ status: string }> {
-    assertValidDomain(domain);
-    const data = await this.request<{ status: string }>(
-      `/accounts/${this.credentials.accountId}/registrar/domains/${domain}`,
-    );
-    return data;
-  }
-
-  async getAccountId(): Promise<string> {
-    const data = await this.request<Array<{ id: string }>>(
-      '/accounts?per_page=1',
-    );
-    if (!data || data.length === 0) {
-      throw new CloudflareApiError(
-        'No Cloudflare accounts found',
-        404,
-        '',
-      );
-    }
-    return data[0]!.id;
-  }
-
   async verifyCredentials(): Promise<boolean> {
     try {
       const endpoint = this.credentials.authType === 'global-key'
@@ -158,6 +130,49 @@ export class CloudflareClient {
     } catch {
       return false;
     }
+  }
+
+  async checkAuthCode(
+    domain: string,
+    authCode: string,
+  ): Promise<{ message: string }> {
+    assertValidDomain(domain);
+    const encoded = Buffer.from(authCode).toString('base64');
+    return this.request<{ message: string }>(
+      `/accounts/${this.credentials.accountId}/registrar/domains/${domain}/check_auth`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ auth_code: encoded }),
+      },
+    );
+  }
+
+  async initiateTransfer(
+    zoneId: string,
+    domain: string,
+    authCode: string,
+    contact: RegistrantContact,
+  ): Promise<{ name: string; message: string }> {
+    assertValidDomain(domain);
+    const encoded = Buffer.from(authCode).toString('base64');
+    return this.request<{ name: string; message: string }>(
+      `/zones/${zoneId}/registrar/domains/${domain}/transfer`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          auth_code: encoded,
+          auto_renew: true,
+          years: 1,
+          privacy: true,
+          import_dns: true,
+          registrant: contact,
+          fee_acknowledgement: {
+            transfer_fee: 0,
+            icann_fee: 0,
+          },
+        }),
+      },
+    );
   }
 
   async waitForZoneActive(

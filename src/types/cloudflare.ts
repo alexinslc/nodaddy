@@ -22,27 +22,19 @@ export const CloudflareDnsRecordSchema = z.object({
 
 export type CloudflareDnsRecord = z.infer<typeof CloudflareDnsRecordSchema>;
 
-export const CloudflareApiResponseSchema = <T extends z.ZodType>(resultSchema: T) =>
-  z.object({
-    success: z.boolean(),
-    errors: z.array(z.object({
-      code: z.number(),
-      message: z.string(),
-    })),
-    messages: z.array(z.object({
-      code: z.number(),
-      message: z.string(),
-    })).optional(),
-    result: resultSchema.nullable(),
-  });
-
-export const CloudflareTransferStatusSchema = z.object({
-  domain: z.string().optional(),
-  status: z.string().optional(),
-  can_register: z.boolean().optional(),
-});
-
-export type CloudflareTransferStatus = z.infer<typeof CloudflareTransferStatusSchema>;
+export interface RegistrantContact {
+  first_name: string;
+  last_name: string;
+  organization: string;
+  address: string;
+  address2: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  phone: string;
+  email: string;
+}
 
 export type CloudflareCredentials =
   | { authType: 'token'; apiToken: string; accountId: string }

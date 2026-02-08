@@ -43,8 +43,33 @@ export class GoDaddyClient {
     }
 
     const text = await res.text();
-    if (!text) return undefined as T;
+    if (!text) throw new Error('Expected JSON response but got empty body');
     return JSON.parse(text) as T;
+  }
+
+  private async requestVoid(
+    path: string,
+    options: RequestInit = {},
+  ): Promise<void> {
+    await godaddyRateLimiter.acquire();
+
+    const res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        Authorization: `sso-key ${this.credentials.apiKey}:${this.credentials.apiSecret}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new GoDaddyApiError(
+        `GoDaddy API error ${res.status}: ${body}`,
+        res.status,
+        body,
+      );
+    }
   }
 
   private async requestText(path: string): Promise<string> {
@@ -91,14 +116,14 @@ export class GoDaddyClient {
 
   async removePrivacy(domain: string): Promise<void> {
     assertValidDomain(domain);
-    await this.request(`/v1/domains/${domain}/privacy`, {
+    await this.requestVoid(`/v1/domains/${domain}/privacy`, {
       method: 'DELETE',
     });
   }
 
   async prepareForTransfer(domain: string): Promise<void> {
     assertValidDomain(domain);
-    await this.request(`/v1/domains/${domain}`, {
+    await this.requestVoid(`/v1/domains/${domain}`, {
       method: 'PATCH',
       body: JSON.stringify({ locked: false, renewAuto: false }),
     });
@@ -141,7 +166,7 @@ export class GoDaddyClient {
     nameservers: string[],
   ): Promise<void> {
     assertValidDomain(domain);
-    await this.request(`/v1/domains/${domain}`, {
+    await this.requestVoid(`/v1/domains/${domain}`, {
       method: 'PATCH',
       body: JSON.stringify({ nameServers: nameservers }),
     });
