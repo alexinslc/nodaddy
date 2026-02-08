@@ -12,8 +12,9 @@ import { assertValidDomain } from '../services/validation.js';
 const BASE_URL = 'https://api.godaddy.com';
 
 // GoDaddy returns 422 "Resource is being used in another request" when
-// mutations overlap. Retry with exponential backoff.
-const RESOURCE_LOCK_MAX_RETRIES = 4;
+// mutations overlap (especially after recent dashboard changes).
+// Retry with linear backoff: 5s, 10s, 15s, 20s, 25s, 30s = 105s total.
+const RESOURCE_LOCK_MAX_RETRIES = 6;
 const RESOURCE_LOCK_BASE_DELAY_MS = 5_000;
 
 export class GoDaddyClient {
@@ -55,6 +56,7 @@ export class GoDaddyClient {
   private async requestVoid(
     path: string,
     options: RequestInit = {},
+    onRetry?: (attempt: number, maxRetries: number, delaySec: number) => void,
   ): Promise<void> {
     for (let attempt = 0; attempt <= RESOURCE_LOCK_MAX_RETRIES; attempt++) {
       await godaddyRateLimiter.acquire();
@@ -76,9 +78,10 @@ export class GoDaddyClient {
 
       const body = await res.text();
 
-      // Retry on 422 resource lock with exponential backoff
+      // Retry on 422 resource lock with linear backoff
       if (res.status === 422 && body.includes('Resource is being used') && attempt < RESOURCE_LOCK_MAX_RETRIES) {
         const delay = RESOURCE_LOCK_BASE_DELAY_MS * (attempt + 1);
+        onRetry?.(attempt + 1, RESOURCE_LOCK_MAX_RETRIES, delay / 1_000);
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
@@ -133,28 +136,38 @@ export class GoDaddyClient {
     return z.array(GoDaddyDnsRecordSchema).parse(data);
   }
 
-  async removePrivacy(domain: string): Promise<void> {
+  async removePrivacy(
+    domain: string,
+    onRetry?: (attempt: number, maxRetries: number, delaySec: number) => void,
+  ): Promise<void> {
     assertValidDomain(domain);
-    await this.requestVoid(`/v1/domains/${domain}/privacy`, {
-      method: 'DELETE',
-    });
+    await this.requestVoid(
+      `/v1/domains/${domain}/privacy`,
+      { method: 'DELETE' },
+      onRetry,
+    );
   }
 
-  async prepareForTransfer(domain: string): Promise<void> {
+  async prepareForTransfer(
+    domain: string,
+    onRetry?: (attempt: number, maxRetries: number, delaySec: number) => void,
+  ): Promise<void> {
     assertValidDomain(domain);
     try {
-      await this.requestVoid(`/v1/domains/${domain}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ locked: false, renewAuto: false }),
-      });
+      await this.requestVoid(
+        `/v1/domains/${domain}`,
+        { method: 'PATCH', body: JSON.stringify({ locked: false, renewAuto: false }) },
+        onRetry,
+      );
     } catch (err) {
       // If combined PATCH fails for a non-lock reason (e.g. renewAuto rejected),
       // retry with just the critical unlock operation
       if (err instanceof GoDaddyApiError && !err.responseBody.includes('Resource is being used')) {
-        await this.requestVoid(`/v1/domains/${domain}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ locked: false }),
-        });
+        await this.requestVoid(
+          `/v1/domains/${domain}`,
+          { method: 'PATCH', body: JSON.stringify({ locked: false }) },
+          onRetry,
+        );
       } else {
         throw err;
       }
@@ -196,12 +209,14 @@ export class GoDaddyClient {
   async updateNameservers(
     domain: string,
     nameservers: string[],
+    onRetry?: (attempt: number, maxRetries: number, delaySec: number) => void,
   ): Promise<void> {
     assertValidDomain(domain);
-    await this.requestVoid(`/v1/domains/${domain}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ nameServers: nameservers }),
-    });
+    await this.requestVoid(
+      `/v1/domains/${domain}`,
+      { method: 'PATCH', body: JSON.stringify({ nameServers: nameservers }) },
+      onRetry,
+    );
   }
 
   async verifyCredentials(): Promise<boolean> {

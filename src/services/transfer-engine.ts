@@ -108,6 +108,14 @@ export async function transferDomain(
     onProgress?.({ domain, step, status, error });
   };
 
+  const retryReporter = (action: string, currentStatus: DomainStatus) =>
+    (attempt: number, maxRetries: number, delaySec: number) => {
+      report(
+        `${action} — GoDaddy resource locked, retrying in ${delaySec}s (${attempt}/${maxRetries})`,
+        currentStatus,
+      );
+    };
+
   try {
     // Step 1: Export DNS records from GoDaddy
     report('Exporting DNS records', 'pending');
@@ -167,7 +175,7 @@ export async function transferDomain(
     // Cloudflare re-enables privacy after transfer completes (privacy: true in request).
     report('Removing WHOIS privacy', 'dns_migrated');
     try {
-      await godaddy.removePrivacy(domain);
+      await godaddy.removePrivacy(domain, retryReporter('Removing WHOIS privacy', 'dns_migrated'));
     } catch (privacyErr) {
       // 409 = Free DBP (can't DELETE, but privacy doesn't block transfer)
       // 404 = Privacy not enabled — that's fine
@@ -180,7 +188,7 @@ export async function transferDomain(
     await new Promise((r) => setTimeout(r, GODADDY_RESOURCE_LOCK_DELAY_MS));
 
     report('Unlocking + disabling auto-renew', 'dns_migrated');
-    await godaddy.prepareForTransfer(domain);
+    await godaddy.prepareForTransfer(domain, retryReporter('Unlocking + disabling auto-renew', 'dns_migrated'));
 
     // Verify unlock — GoDaddy processes this async, so poll
     report('Waiting for unlock to propagate', 'dns_migrated');
@@ -210,7 +218,7 @@ export async function transferDomain(
     // Step 6: Update nameservers at GoDaddy
     if (nameservers.length > 0) {
       report('Updating nameservers', 'auth_obtained');
-      await godaddy.updateNameservers(domain, nameservers);
+      await godaddy.updateNameservers(domain, nameservers, retryReporter('Updating nameservers', 'auth_obtained'));
       state.updateDomainStatus(migrationId, domain, 'ns_changed');
       report('Nameservers updated', 'ns_changed');
     }
