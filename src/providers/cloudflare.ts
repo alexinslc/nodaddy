@@ -126,20 +126,6 @@ export class CloudflareClient {
     return z.array(CloudflareDnsRecordSchema).parse(data);
   }
 
-  async initiateTransfer(
-    domain: string,
-    authCode: string,
-  ): Promise<unknown> {
-    assertValidDomain(domain);
-    return this.request(
-      `/accounts/${this.credentials.accountId}/registrar/domains/${domain}/transfer`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ auth_code: authCode }),
-      },
-    );
-  }
-
   async getTransferStatus(domain: string): Promise<{ status: string }> {
     assertValidDomain(domain);
     const data = await this.request<{ status: string }>(

@@ -10,7 +10,7 @@ import {
 import { selectDomains } from '../ui/domain-selector.js';
 import { previewDnsRecords } from '../ui/dns-preview.js';
 import { preflightCheck, type PreflightResult } from '../services/transfer-engine.js';
-import { createMigrationTasks } from '../ui/progress.js';
+import { createMigrationTasks, type MigrationContext } from '../ui/progress.js';
 import { createMigration } from '../services/state-manager.js';
 import type { GoDaddyDomain } from '../types/godaddy.js';
 
@@ -138,27 +138,37 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
     migrationOptions,
   );
 
+  const ctx: MigrationContext = { results: new Map() };
   try {
-    await tasks.run({ results: new Map() });
+    await tasks.run(ctx);
   } catch {
     // Errors are handled per-task via exitOnError: false
   }
 
   // Step 10: Summary
-  const ctx = { results: new Map<string, { success: boolean; error?: string }>() };
-  // Re-read state for accurate results
   const succeeded = eligibleDomains.filter(
-    (d) => !ctx.results.has(d) || ctx.results.get(d)!.success,
+    (d) => ctx.results.get(d)?.success,
   );
 
   p.log.success(
-    `Migration ${migrationOptions.dryRun ? 'preview' : 'initiated'} for ${succeeded.length}/${eligible.length} domains`,
+    `Migration ${migrationOptions.dryRun ? 'preview' : 'prepared'} for ${succeeded.length}/${eligible.length} domains`,
   );
 
-  if (!migrationOptions.dryRun) {
+  if (!migrationOptions.dryRun && succeeded.length > 0) {
+    // Show auth codes for completing transfers in Cloudflare dashboard
+    const authLines = succeeded
+      .map((d) => {
+        const authCode = ctx.results.get(d)?.authCode;
+        return authCode ? `  ${d}: ${authCode}` : `  ${d}: (no auth code)`;
+      })
+      .join('\n');
+
     p.note(
-      'Run `nodaddy status` to check transfer progress.\n' +
-        'Transfers typically take 1-5 days to complete.',
+      `DNS migrated, domains unlocked, nameservers updated.\n` +
+        `Complete the transfer in the Cloudflare dashboard:\n\n` +
+        `  https://dash.cloudflare.com/?to=/:account/domains/transfer\n\n` +
+        `Auth codes:\n${authLines}\n\n` +
+        `Transfers typically take 1-5 days to complete.`,
       'Next Steps',
     );
   }

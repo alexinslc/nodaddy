@@ -71,7 +71,7 @@ nodaddy config --reset     # Clear stored credentials
 
 ## How it works
 
-For each domain, `nodaddy` runs through 8 steps automatically:
+For each domain, `nodaddy` automates 7 steps:
 
 1. **Preflight** — Verify domain is active, >60 days old, TLD supported
 2. **DNS backup** — Export all records from GoDaddy
@@ -80,7 +80,8 @@ For each domain, `nodaddy` runs through 8 steps automatically:
 5. **Prepare GoDaddy** — Remove privacy, disable auto-renew, unlock domain
 6. **Auth code** — Fetch transfer authorization code
 7. **Nameservers** — Point domain to Cloudflare's nameservers
-8. **Transfer** — Initiate transfer at Cloudflare
+
+After completion, `nodaddy` displays auth codes and a link to the Cloudflare dashboard where you finalize each transfer. Cloudflare's Registrar API does not support initiating inbound transfers programmatically.
 
 Rate limiting, concurrent batch processing (8 domains at a time), and state persistence are built in. If anything interrupts, run `nodaddy resume`.
 

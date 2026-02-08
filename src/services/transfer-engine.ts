@@ -9,6 +9,10 @@ import {
 import * as state from './state-manager.js';
 import { formatError, formatErrorPlain } from './errors.js';
 
+export interface TransferResult {
+  authCode: string;
+}
+
 export interface TransferProgress {
   domain: string;
   step: string;
@@ -82,7 +86,7 @@ export async function transferDomain(
   migrationId: string,
   options: MigrationOptions,
   onProgress?: ProgressCallback,
-): Promise<void> {
+): Promise<TransferResult | void> {
   const report = (step: string, status: DomainStatus, error?: string) => {
     onProgress?.({ domain, step, status, error });
   };
@@ -176,11 +180,8 @@ export async function transferDomain(
       report('Nameservers updated', 'ns_changed');
     }
 
-    // Step 7: Initiate transfer at Cloudflare
-    report('Initiating transfer', 'ns_changed');
-    await cloudflare.initiateTransfer(domain, authCode);
-    state.updateDomainStatus(migrationId, domain, 'transfer_initiated');
-    report('Transfer initiated', 'transfer_initiated');
+    report('Ready for transfer', 'ns_changed');
+    return { authCode };
   } catch (err) {
     const rawMessage = err instanceof Error ? err.message : String(err);
     // Detect provider from error type name

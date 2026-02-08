@@ -4,8 +4,8 @@ import type { CloudflareClient } from '../providers/cloudflare.js';
 import type { MigrationOptions } from '../types/config.js';
 import { transferDomain } from '../services/transfer-engine.js';
 
-interface MigrationContext {
-  results: Map<string, { success: boolean; error?: string }>;
+export interface MigrationContext {
+  results: Map<string, { success: boolean; error?: string; authCode?: string }>;
 }
 
 export function createMigrationTasks(
@@ -20,7 +20,7 @@ export function createMigrationTasks(
       title: domain,
       task: async (ctx, task) => {
         try {
-          await transferDomain(
+          const result = await transferDomain(
             godaddy,
             cloudflare,
             domain,
@@ -30,7 +30,10 @@ export function createMigrationTasks(
               task.title = `${domain} — ${progress.step}`;
             },
           );
-          ctx.results.set(domain, { success: true });
+          ctx.results.set(domain, {
+            success: true,
+            authCode: result?.authCode,
+          });
           task.title = `${domain} ✓`;
         } catch (err) {
           const message =
