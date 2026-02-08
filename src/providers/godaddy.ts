@@ -42,7 +42,9 @@ export class GoDaddyClient {
       );
     }
 
-    return res.json() as Promise<T>;
+    const text = await res.text();
+    if (!text) return undefined as T;
+    return JSON.parse(text) as T;
   }
 
   async listDomains(): Promise<GoDaddyDomain[]> {

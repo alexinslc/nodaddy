@@ -54,7 +54,10 @@ export class CloudflareClient {
       );
     }
 
-    const json = (await res.json()) as {
+    const text = await res.text();
+    if (!text) return undefined as T;
+
+    const json = JSON.parse(text) as {
       success: boolean;
       errors: Array<{ code: number; message: string }>;
       result: T;
