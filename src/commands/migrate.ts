@@ -165,10 +165,23 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
   const succeeded = eligibleDomains.filter(
     (d) => ctx.results.get(d)?.success,
   );
-
-  p.log.success(
-    `Migration ${migrationOptions.dryRun ? 'preview' : 'run finished'} for ${succeeded.length}/${eligible.length} domains`,
+  const failed = eligibleDomains.filter(
+    (d) => !ctx.results.get(d)?.success,
   );
+
+  if (migrationOptions.dryRun) {
+    p.log.success(`Preview run finished for ${succeeded.length}/${eligible.length} domains`);
+  } else if (succeeded.length === eligible.length) {
+    p.log.success(`Migration run finished for ${succeeded.length}/${eligible.length} domains`);
+  } else if (succeeded.length > 0) {
+    p.log.warn(
+      `Migration run finished: ${chalk.green(succeeded.length)} succeeded, ${chalk.red(failed.length)} failed`,
+    );
+  } else {
+    p.log.error(
+      `Migration failed for all ${eligible.length} domain${eligible.length === 1 ? '' : 's'}`,
+    );
+  }
 
   if (!migrationOptions.dryRun && succeeded.length > 0) {
     p.note(
@@ -178,6 +191,22 @@ export async function migrateCommand(opts: MigrateOptions): Promise<void> {
         `  https://dash.cloudflare.com/?to=/:account/domains/transfer\n\n` +
         `Transfers typically take 1-5 days to complete.`,
       'Next Steps',
+    );
+  }
+
+  if (!migrationOptions.dryRun && failed.length > 0) {
+    p.note(
+      `${failed.length} domain${failed.length === 1 ? '' : 's'} failed. Your progress has been saved.\n\n` +
+        `To retry failed domains:\n` +
+        `  ${chalk.cyan('nodaddy resume')}\n\n` +
+        `To see what went wrong:\n` +
+        `  ${chalk.cyan('nodaddy status')}\n\n` +
+        `Common fixes:\n` +
+        `  • "Resource is being used" — GoDaddy is still processing a\n` +
+        `    recent change. Wait a few minutes and run resume.\n` +
+        `  • Domain Protection — disable at https://dcc.godaddy.com\n` +
+        `  • Auth code issues — check your GoDaddy email inbox`,
+      'Failed Domains',
     );
   }
 
