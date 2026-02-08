@@ -115,6 +115,8 @@ export function updateDomainStatus(
 
   migration.domains[domain] = {
     ...domainState,
+    // Clear stale error when transitioning to a non-failed status
+    ...(status !== 'failed' ? { error: undefined } : {}),
     ...extra,
     status,
     lastUpdated: new Date().toISOString(),
