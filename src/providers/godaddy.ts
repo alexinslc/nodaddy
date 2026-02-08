@@ -7,6 +7,7 @@ import {
   type GoDaddyCredentials,
 } from '../types/godaddy.js';
 import { godaddyRateLimiter } from '../services/rate-limiter.js';
+import { assertValidDomain } from '../services/validation.js';
 
 const BASE_URL = 'https://api.godaddy.com';
 
@@ -52,11 +53,13 @@ export class GoDaddyClient {
   }
 
   async getDomainDetail(domain: string): Promise<GoDaddyDomain> {
+    assertValidDomain(domain);
     const data = await this.request<unknown>(`/v1/domains/${domain}`);
     return GoDaddyDomainSchema.parse(data);
   }
 
   async getDnsRecords(domain: string): Promise<GoDaddyDnsRecord[]> {
+    assertValidDomain(domain);
     const data = await this.request<unknown[]>(
       `/v1/domains/${domain}/records`,
     );
@@ -64,12 +67,14 @@ export class GoDaddyClient {
   }
 
   async removePrivacy(domain: string): Promise<void> {
+    assertValidDomain(domain);
     await this.request(`/v1/domains/${domain}/privacy`, {
       method: 'DELETE',
     });
   }
 
   async unlockDomain(domain: string): Promise<void> {
+    assertValidDomain(domain);
     await this.request(`/v1/domains/${domain}`, {
       method: 'PATCH',
       body: JSON.stringify({ locked: false }),
@@ -77,6 +82,7 @@ export class GoDaddyClient {
   }
 
   async disableAutoRenew(domain: string): Promise<void> {
+    assertValidDomain(domain);
     await this.request(`/v1/domains/${domain}`, {
       method: 'PATCH',
       body: JSON.stringify({ renewAuto: false }),
@@ -84,6 +90,7 @@ export class GoDaddyClient {
   }
 
   async getAuthCode(domain: string): Promise<string> {
+    assertValidDomain(domain);
     // GoDaddy returns the auth code as a plain string for some TLDs,
     // or as an array with a single string for others
     const res = await fetch(
@@ -121,6 +128,7 @@ export class GoDaddyClient {
     domain: string,
     nameservers: string[],
   ): Promise<void> {
+    assertValidDomain(domain);
     await this.request(`/v1/domains/${domain}`, {
       method: 'PATCH',
       body: JSON.stringify({ nameServers: nameservers }),

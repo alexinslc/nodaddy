@@ -16,6 +16,7 @@ interface StoreSchema {
 
 const store = new Conf<StoreSchema>({
   projectName: 'nodaddy',
+  configFileMode: 0o600,
   defaults: {
     config: {},
     migrations: {},
@@ -68,16 +69,27 @@ export function createMigration(domains: string[]): MigrationState {
   return migration;
 }
 
+// Strip any auth codes left by older versions
+function sanitizeMigration(migration: MigrationState): MigrationState {
+  for (const domain of Object.values(migration.domains)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (domain as any).authCode;
+  }
+  return migration;
+}
+
 export function getActiveMigration(): MigrationState | null {
   const id = store.get('activeMigrationId');
   if (!id) return null;
   const migrations = store.get('migrations');
-  return migrations[id] ?? null;
+  const migration = migrations[id];
+  return migration ? sanitizeMigration(migration) : null;
 }
 
 export function getMigration(id: string): MigrationState | null {
   const migrations = store.get('migrations');
-  return migrations[id] ?? null;
+  const migration = migrations[id];
+  return migration ? sanitizeMigration(migration) : null;
 }
 
 export function updateDomainStatus(

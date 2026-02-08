@@ -19,13 +19,13 @@ Each domain requires ~8 manual steps across two dashboards. For 50 domains, that
 ## Install
 
 ```bash
-npm install -g @alexlutz/nodaddy
+npm install -g nodaddy
 ```
 
 Or run directly:
 
 ```bash
-npx @alexlutz/nodaddy migrate
+npx nodaddy migrate
 ```
 
 ## Usage
@@ -62,9 +62,13 @@ $ nodaddy migrate
   │  API Key: ●●●●●●●●●●●●
   │  API Secret: ●●●●●●●●●●
   │
-  ◆  Cloudflare API credentials
-  │  API Token: ●●●●●●●●●●●●
-  │  Account ID: auto-detected ✓
+  ◆  Cloudflare auth method
+  │  ● Global API Key (recommended)
+  │  ○ Scoped API Token
+  │
+  │  Email: you@example.com
+  │  Global API Key: ●●●●●●●●●●●●
+  │  Account ID: ●●●●●●●●●●●● ✓
   │
   ◇  Fetching domains from GoDaddy...
   │  Found 73 domains
@@ -101,11 +105,27 @@ You'll need API keys from both sides:
 - You'll get a key + secret pair
 
 **Cloudflare** — [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
-- Create a token with these permissions:
-  - `Zone:Edit`
-  - `DNS:Edit`
-  - `Registrar Domains:Edit`
-- You'll also need your Account ID (found on any zone overview page)
+
+The wizard supports two auth methods:
+
+| Method | Permissions | Best for |
+|--------|------------|----------|
+| **Global API Key** (recommended) | Full account access | Domain transfers — Cloudflare's scoped tokens don't support Registrar operations |
+| Scoped API Token | `Zone:Edit`, `DNS:Edit` | DNS-only migrations (no registrar transfer) |
+
+For full transfers, use your **Global API Key** (found at the bottom of your [API Tokens page](https://dash.cloudflare.com/profile/api-tokens)). You'll also need your account email and Account ID (found on any zone overview page).
+
+> **Why Global API Key?** Cloudflare's scoped API tokens don't currently support `Registrar Domains:Edit`, which is required to initiate domain transfers. If you're only migrating DNS records without transferring the domain, a scoped token works fine.
+
+You can also skip the interactive prompts by setting environment variables:
+
+```bash
+export GODADDY_API_KEY=your-key
+export GODADDY_API_SECRET=your-secret
+export CLOUDFLARE_API_KEY=your-global-api-key
+export CLOUDFLARE_EMAIL=you@example.com
+export CLOUDFLARE_ACCOUNT_ID=your-account-id
+```
 
 ## The migration pipeline
 
