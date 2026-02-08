@@ -34,9 +34,14 @@ Pricing varies by TLD. The CLI shows a cost reminder and asks for confirmation b
 ```bash
 export GODADDY_API_KEY=your-key
 export GODADDY_API_SECRET=your-secret
+export CLOUDFLARE_ACCOUNT_ID=your-account-id
+
+# Global API Key (recommended — supports registrar transfers)
 export CLOUDFLARE_API_KEY=your-global-api-key
 export CLOUDFLARE_EMAIL=you@example.com
-export CLOUDFLARE_ACCOUNT_ID=your-account-id
+
+# OR scoped API Token (DNS-only migrations, no transfer support)
+# export CLOUDFLARE_API_TOKEN=your-api-token
 ```
 
 ## Install
@@ -59,6 +64,7 @@ nodaddy migrate --all      # Skip domain picker, take them all
 nodaddy migrate --dry-run  # Preview without making changes
 nodaddy list               # List GoDaddy domains
 nodaddy status             # Check transfer progress
+nodaddy resume             # Resume interrupted transfers
 nodaddy config             # View stored credentials
 nodaddy config --reset     # Clear stored credentials
 ```
