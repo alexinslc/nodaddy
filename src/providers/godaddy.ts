@@ -24,40 +24,14 @@ export class GoDaddyClient {
     this.credentials = credentials;
   }
 
-  private async request<T>(
-    path: string,
-    options: RequestInit = {},
-  ): Promise<T> {
-    await godaddyRateLimiter.acquire();
-
-    const res = await fetch(`${BASE_URL}${path}`, {
-      ...options,
-      headers: {
-        Authorization: `sso-key ${this.credentials.apiKey}:${this.credentials.apiSecret}`,
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new GoDaddyApiError(
-        `GoDaddy API error ${res.status}: ${body}`,
-        res.status,
-        body,
-      );
-    }
-
-    const text = await res.text();
-    if (!text) throw new Error('Expected JSON response but got empty body');
-    return JSON.parse(text) as T;
-  }
-
-  private async requestVoid(
+  /**
+   * Core fetch with 422 resource lock retry. All request methods use this.
+   */
+  private async fetchWithRetry(
     path: string,
     options: RequestInit = {},
     onRetry?: (attempt: number, maxRetries: number, delaySec: number) => void,
-  ): Promise<void> {
+  ): Promise<Response> {
     for (let attempt = 0; attempt <= RESOURCE_LOCK_MAX_RETRIES; attempt++) {
       await godaddyRateLimiter.acquire();
 
@@ -70,11 +44,7 @@ export class GoDaddyClient {
         },
       });
 
-      if (res.ok) {
-        // Drain body to allow connection reuse
-        await res.text();
-        return;
-      }
+      if (res.ok) return res;
 
       const body = await res.text();
 
@@ -92,26 +62,37 @@ export class GoDaddyClient {
         body,
       );
     }
+
+    // Unreachable — loop always returns or throws
+    throw new Error('Exhausted retries');
   }
 
-  private async requestText(path: string): Promise<string> {
-    await godaddyRateLimiter.acquire();
+  private async request<T>(
+    path: string,
+    options: RequestInit = {},
+    onRetry?: (attempt: number, maxRetries: number, delaySec: number) => void,
+  ): Promise<T> {
+    const res = await this.fetchWithRetry(path, options, onRetry);
+    const text = await res.text();
+    if (!text) throw new Error('Expected JSON response but got empty body');
+    return JSON.parse(text) as T;
+  }
 
-    const res = await fetch(`${BASE_URL}${path}`, {
-      headers: {
-        Authorization: `sso-key ${this.credentials.apiKey}:${this.credentials.apiSecret}`,
-      },
-    });
+  private async requestVoid(
+    path: string,
+    options: RequestInit = {},
+    onRetry?: (attempt: number, maxRetries: number, delaySec: number) => void,
+  ): Promise<void> {
+    const res = await this.fetchWithRetry(path, options, onRetry);
+    // Drain body to allow connection reuse
+    await res.text();
+  }
 
-    if (!res.ok) {
-      const body = await res.text();
-      throw new GoDaddyApiError(
-        `GoDaddy API error ${res.status}: ${body}`,
-        res.status,
-        body,
-      );
-    }
-
+  private async requestText(
+    path: string,
+    onRetry?: (attempt: number, maxRetries: number, delaySec: number) => void,
+  ): Promise<string> {
+    const res = await this.fetchWithRetry(path, {}, onRetry);
     return res.text();
   }
 
