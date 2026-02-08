@@ -266,6 +266,23 @@ export async function collectMigrationOptions(
 }
 
 export async function collectRegistrantContact(): Promise<RegistrantContact> {
+  // Check for previously saved contact
+  const config = getConfig();
+  if (config.registrantContact) {
+    const saved = config.registrantContact;
+    const useStored = await p.confirm({
+      message: `Use saved registrant contact? (${saved.first_name} ${saved.last_name}, ${saved.email})`,
+      initialValue: true,
+    });
+
+    if (p.isCancel(useStored)) {
+      p.cancel('Migration cancelled.');
+      process.exit(0);
+    }
+
+    if (useStored) return saved;
+  }
+
   p.note(
     'ICANN requires registrant contact info for all domain transfers.\n' +
       'Cloudflare enables free WHOIS privacy by default, so this\n' +
@@ -332,7 +349,7 @@ export async function collectRegistrantContact(): Promise<RegistrantContact> {
     { onCancel: () => { p.cancel('Migration cancelled.'); process.exit(0); } },
   );
 
-  return {
+  const result: RegistrantContact = {
     first_name: contact.first_name as string,
     last_name: contact.last_name as string,
     organization: '',
@@ -345,6 +362,12 @@ export async function collectRegistrantContact(): Promise<RegistrantContact> {
     phone: contact.phone as string,
     email: contact.email as string,
   };
+
+  // Save for future use
+  setConfig({ registrantContact: result });
+  p.log.success('Registrant contact saved for future transfers.');
+
+  return result;
 }
 
 export async function confirmTransferCost(

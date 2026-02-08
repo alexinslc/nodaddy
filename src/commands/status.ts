@@ -1,10 +1,7 @@
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import Table from 'cli-table3';
-import {
-  getActiveMigration,
-  getAllMigrations,
-} from '../services/state-manager.js';
+import { getAllMigrations } from '../services/state-manager.js';
 import type { DomainStatus } from '../types/config.js';
 
 const STATUS_COLORS: Record<DomainStatus, (s: string) => string> = {
@@ -32,23 +29,19 @@ const STATUS_LABELS: Record<DomainStatus, string> = {
 export async function statusCommand(): Promise<void> {
   p.intro(chalk.bgCyan.black(' nodaddy — migration status '));
 
-  const migration = getActiveMigration();
-
-  if (!migration) {
-    const allMigrations = getAllMigrations();
-    if (allMigrations.length === 0) {
-      p.log.info('No migrations found. Run `nodaddy migrate` to start one.');
-      p.outro('');
-      return;
-    }
-
-    // Show latest migration
-    const latest = allMigrations[0]!;
-    showMigrationStatus(latest.id, latest);
+  const allMigrations = getAllMigrations();
+  if (allMigrations.length === 0) {
+    p.log.info('No migrations found. Run `nodaddy migrate` to start one.');
+    p.outro('');
     return;
   }
 
-  showMigrationStatus(migration.id, migration);
+  // Show all migrations, newest first
+  for (const migration of allMigrations) {
+    showMigrationStatus(migration.id, migration);
+  }
+
+  p.outro('');
 }
 
 function showMigrationStatus(
@@ -58,7 +51,22 @@ function showMigrationStatus(
   const domains = Object.values(migration.domains);
   const started = new Date(migration.startedAt).toLocaleString();
 
-  p.log.info(`Migration ${chalk.dim(id.slice(0, 8))} started ${started}`);
+  const counts = domains.reduce(
+    (acc, d) => {
+      acc[d.status] = (acc[d.status] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  const summary = Object.entries(counts)
+    .map(([status, count]) => {
+      const colorFn = STATUS_COLORS[status as DomainStatus] ?? chalk.dim;
+      return colorFn(`${STATUS_LABELS[status as DomainStatus] ?? status}: ${count}`);
+    })
+    .join(' | ');
+
+  p.log.info(`Migration ${chalk.dim(id.slice(0, 8))} — ${started} — ${summary}`);
 
   const table = new Table({
     head: ['Domain', 'Status', 'Last Updated'],
@@ -77,22 +85,4 @@ function showMigrationStatus(
   }
 
   console.log(table.toString());
-
-  // Summary
-  const counts = domains.reduce(
-    (acc, d) => {
-      acc[d.status] = (acc[d.status] ?? 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
-
-  const summary = Object.entries(counts)
-    .map(([status, count]) => {
-      const colorFn = STATUS_COLORS[status as DomainStatus] ?? chalk.dim;
-      return colorFn(`${STATUS_LABELS[status as DomainStatus] ?? status}: ${count}`);
-    })
-    .join(' | ');
-
-  p.outro(summary);
 }
