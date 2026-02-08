@@ -104,15 +104,19 @@ export async function transferDomain(
     try {
       zone = await cloudflare.createZone(domain);
     } catch (err) {
-      // Zone might already exist — try to find it
+      // Zone might already exist from a previous run — try to find it
       const message = err instanceof Error ? err.message : '';
       if (message.includes('already exists')) {
-        // Try fetching existing zone by listing zones
         report('Zone already exists, looking up', 'pending');
-        const existingZones = await cloudflare.listDnsRecords(''); // will error, need different approach
-        throw err; // For now, re-throw
+        const existing = await cloudflare.getZoneByName(domain);
+        if (existing) {
+          zone = existing;
+        } else {
+          throw err;
+        }
+      } else {
+        throw err;
       }
-      throw err;
     }
 
     const zoneId = zone.id;

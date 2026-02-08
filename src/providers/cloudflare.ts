@@ -88,6 +88,15 @@ export class CloudflareClient {
     return CloudflareZoneSchema.parse(data);
   }
 
+  async getZoneByName(domain: string): Promise<CloudflareZone | null> {
+    assertValidDomain(domain);
+    const data = await this.request<unknown[]>(
+      `/zones?name=${encodeURIComponent(domain)}&account.id=${this.credentials.accountId}`,
+    );
+    const zones = z.array(CloudflareZoneSchema).parse(data);
+    return zones[0] ?? null;
+  }
+
   async getZoneStatus(zoneId: string): Promise<CloudflareZone> {
     const data = await this.request<unknown>(`/zones/${zoneId}`);
     return CloudflareZoneSchema.parse(data);
