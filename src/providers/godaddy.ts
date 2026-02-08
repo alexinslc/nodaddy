@@ -73,19 +73,11 @@ export class GoDaddyClient {
     });
   }
 
-  async unlockDomain(domain: string): Promise<void> {
+  async prepareForTransfer(domain: string): Promise<void> {
     assertValidDomain(domain);
     await this.request(`/v1/domains/${domain}`, {
       method: 'PATCH',
-      body: JSON.stringify({ locked: false }),
-    });
-  }
-
-  async disableAutoRenew(domain: string): Promise<void> {
-    assertValidDomain(domain);
-    await this.request(`/v1/domains/${domain}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ renewAuto: false }),
+      body: JSON.stringify({ locked: false, renewAuto: false }),
     });
   }
 

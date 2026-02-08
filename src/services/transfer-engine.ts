@@ -141,19 +141,14 @@ export async function transferDomain(
     report('Removing privacy', 'dns_migrated');
     try {
       await godaddy.removePrivacy(domain);
+      // Brief delay — GoDaddy locks the resource while processing mutations
+      await new Promise((r) => setTimeout(r, 2000));
     } catch {
       // Privacy might not be enabled — that's OK
     }
 
-    report('Disabling auto-renew', 'dns_migrated');
-    try {
-      await godaddy.disableAutoRenew(domain);
-    } catch {
-      // May not be enabled
-    }
-
-    report('Unlocking domain', 'dns_migrated');
-    await godaddy.unlockDomain(domain);
+    report('Unlocking + disabling auto-renew', 'dns_migrated');
+    await godaddy.prepareForTransfer(domain);
 
     // Verify unlock
     const detail = await godaddy.getDomainDetail(domain);
