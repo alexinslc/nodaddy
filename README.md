@@ -10,11 +10,39 @@ A CLI tool that automates bulk domain transfers from GoDaddy to Cloudflare, beca
 
 ---
 
-## What it does
+## Before you start
 
-Takes your mass GoDaddy domain collection and moves it to Cloudflare in one shot. Every tedious step — DNS backup, privacy removal, domain unlocking, auth codes, nameserver changes, transfer initiation — automated.
+**API Keys** — you'll need credentials from both providers:
 
-Each domain requires ~8 manual steps across two dashboards. For 50 domains, that's 400 clicks you'll never get back. Or you could just run `nodaddy migrate`.
+- **GoDaddy** — Create a Production API key at [developer.godaddy.com/keys](https://developer.godaddy.com/keys) (not OTE/test). You'll get a key + secret pair.
+- **Cloudflare** — Use your **Global API Key** from [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) (bottom of page). You'll also need your account email and Account ID (found on any zone overview page).
+
+> **Why Global API Key?** Cloudflare's scoped tokens don't support `Registrar Domains:Edit`, which is needed for transfers. A scoped token with `Zone:Edit` + `DNS:Edit` works if you only want DNS migration without transferring the domain.
+
+**Transfer costs** — each transfer includes a 1-year renewal at Cloudflare's at-cost pricing, billed to the card on file in your Cloudflare account. Make sure you have a payment method set up.
+
+| TLD | Cloudflare | GoDaddy |
+|-----|-----------|---------|
+| .com | ~$9.15/yr | ~$22/yr |
+| .net | ~$10.50/yr | ~$20/yr |
+| .org | ~$10.00/yr | ~$22/yr |
+
+Pricing varies by TLD. The CLI shows a cost reminder and asks for confirmation before initiating transfers.
+
+**Environment variables** — optionally skip the interactive prompts:
+
+```bash
+export GODADDY_API_KEY=your-key
+export GODADDY_API_SECRET=your-secret
+export CLOUDFLARE_ACCOUNT_ID=your-account-id
+
+# Global API Key (recommended — supports registrar transfers)
+export CLOUDFLARE_API_KEY=your-global-api-key
+export CLOUDFLARE_EMAIL=you@example.com
+
+# OR scoped API Token (DNS-only migrations, no transfer support)
+# export CLOUDFLARE_API_TOKEN=your-api-token
+```
 
 ## Install
 
@@ -31,151 +59,32 @@ npx nodaddy migrate
 ## Usage
 
 ```bash
-# The main event — interactive wizard walks you through everything
-nodaddy migrate
-
-# Skip the domain picker, take them all
-nodaddy migrate --all
-
-# Feeling cautious? Preview first
-nodaddy migrate --dry-run
-
-# See what you're working with
-nodaddy list
-
-# Check on your transfers (they take 1-5 days, patience)
-nodaddy status
-
-# Manage your API credentials
-nodaddy config
-nodaddy config --reset
+nodaddy migrate            # Interactive wizard
+nodaddy migrate --all      # Skip domain picker, take them all
+nodaddy migrate --dry-run  # Preview without making changes
+nodaddy list               # List GoDaddy domains
+nodaddy status             # Check transfer progress
+nodaddy resume             # Resume interrupted transfers
+nodaddy config             # View stored credentials
+nodaddy config --reset     # Clear stored credentials
 ```
 
-## What happens when you run `migrate`
+## How it works
 
-```
-$ nodaddy migrate
-
-  ┌  nodaddy v1.0.0
-  │
-  ◆  GoDaddy API credentials
-  │  API Key: ●●●●●●●●●●●●
-  │  API Secret: ●●●●●●●●●●
-  │
-  ◆  Cloudflare auth method
-  │  ● Global API Key (recommended)
-  │  ○ Scoped API Token
-  │
-  │  Email: you@example.com
-  │  Global API Key: ●●●●●●●●●●●●
-  │  Account ID: ●●●●●●●●●●●● ✓
-  │
-  ◇  Fetching domains from GoDaddy...
-  │  Found 73 domains
-  │
-  ◆  Select domains to migrate
-  │  ◻ example.com (expires 2027-01-15) [locked]
-  │  ◻ mysite.io (expires 2026-08-20) [locked]
-  │  ◼ oldsite.net (expires 2026-03-01) ⚠ expires soon
-  │  ... (space to toggle, a to select all)
-  │
-  ◇  Running preflight checks...
-  │  ✓ 71/73 domains eligible
-  │  ✗ 2 ineligible:
-  │    - newsite.uk (ccTLD not supported)
-  │    - recent.com (transferred 20 days ago, 60-day lock)
-  │
-  ◇  Migrating domains...
-  │
-  │  ✓ example.com     [DNS ✓] [Unlock ✓] [Auth ✓] [NS ✓] [Transfer ✓]
-  │  ✓ mysite.io       [DNS ✓] [Unlock ✓] [Auth ✓] [NS ✓] [Transfer ✓]
-  │  ⠋ portfolio.com   [DNS ✓] [Unlock ✓] [Auth...]
-  │  ◻ remaining: 68 domains
-  │
-  └  Migration initiated for 71 domains!
-     Run `nodaddy status` to track transfers.
-```
-
-## Prerequisites
-
-You'll need API keys from both sides:
-
-**GoDaddy** — [developer.godaddy.com/keys](https://developer.godaddy.com/keys)
-- Create a "Production" API key (not OTE/test)
-- You'll get a key + secret pair
-
-**Cloudflare** — [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
-
-The wizard supports two auth methods:
-
-| Method | Permissions | Best for |
-|--------|------------|----------|
-| **Global API Key** (recommended) | Full account access | Domain transfers — Cloudflare's scoped tokens don't support Registrar operations |
-| Scoped API Token | `Zone:Edit`, `DNS:Edit` | DNS-only migrations (no registrar transfer) |
-
-For full transfers, use your **Global API Key** (found at the bottom of your [API Tokens page](https://dash.cloudflare.com/profile/api-tokens)). You'll also need your account email and Account ID (found on any zone overview page).
-
-> **Why Global API Key?** Cloudflare's scoped API tokens don't currently support `Registrar Domains:Edit`, which is required to initiate domain transfers. If you're only migrating DNS records without transferring the domain, a scoped token works fine.
-
-You can also skip the interactive prompts by setting environment variables:
-
-```bash
-export GODADDY_API_KEY=your-key
-export GODADDY_API_SECRET=your-secret
-export CLOUDFLARE_API_KEY=your-global-api-key
-export CLOUDFLARE_EMAIL=you@example.com
-export CLOUDFLARE_ACCOUNT_ID=your-account-id
-```
-
-## The migration pipeline
-
-For each domain, `nodaddy` runs through this in order:
+For each domain, `nodaddy` runs through 8 steps automatically:
 
 1. **Preflight** — Verify domain is active, >60 days old, TLD supported
 2. **DNS backup** — Export all records from GoDaddy
-3. **Zone creation** — Create Cloudflare zone with `jump_start`
-4. **DNS migration** — Map and recreate all records (A, AAAA, CNAME, MX, TXT, SRV, CAA, NS)
+3. **Zone creation** — Create Cloudflare zone
+4. **DNS migration** — Map and recreate records (A, AAAA, CNAME, MX, TXT, SRV, CAA, NS)
 5. **Prepare GoDaddy** — Remove privacy, disable auto-renew, unlock domain
-6. **Auth code** — Fetch EPP/transfer authorization code
+6. **Auth code** — Fetch transfer authorization code
 7. **Nameservers** — Point domain to Cloudflare's nameservers
-8. **Transfer** — Initiate transfer at Cloudflare with auth code
+8. **Transfer** — Initiate transfer at Cloudflare
 
-All with rate limiting (GoDaddy: 60 req/min, Cloudflare: 1200 req/5min), concurrent batch processing (8 domains at a time), and state persistence so you can resume if anything interrupts.
+Rate limiting, concurrent batch processing (8 domains at a time), and state persistence are built in. If anything interrupts, run `nodaddy resume`.
 
-## Transfer costs
-
-Domain transfers aren't free — each transfer includes a **1-year renewal** charged at Cloudflare's at-cost pricing. The good news: Cloudflare doesn't mark up domain prices, so you're paying wholesale.
-
-| TLD | Cloudflare (at-cost) | GoDaddy (typical renewal) |
-|-----|---------------------|--------------------------|
-| .com | ~$9.15/yr | ~$22/yr |
-| .net | ~$10.50/yr | ~$20/yr |
-| .org | ~$10.00/yr | ~$22/yr |
-
-The transfer cost is billed to the payment method on file in your Cloudflare account. Make sure you have a card set up at [dash.cloudflare.com](https://dash.cloudflare.com) before running a non-dry-run migration. The CLI will show a cost estimate and ask for confirmation before initiating any transfers.
-
-## DNS record support
-
-All the record types you care about:
-
-| Type | Supported | Notes |
-|------|-----------|-------|
-| A | Yes | |
-| AAAA | Yes | |
-| CNAME | Yes | |
-| MX | Yes | Priority preserved |
-| TXT | Yes | SPF, DKIM, DMARC, etc. |
-| SRV | Yes | Mapped to Cloudflare's nested format |
-| CAA | Yes | |
-| NS | Yes | Non-apex only (Cloudflare manages apex NS) |
-
-GoDaddy parking records and forwarding junk are automatically skipped. Records are created with `proxied: false` by default so your traffic routing doesn't change unexpectedly.
-
-## Goodbye GoDaddy
-
-Thanks for the domains. Thanks for the Super Bowl ads. Thanks for charging me $20/year for WHOIS privacy that Cloudflare includes for free. Thanks for the checkout page with more upsells than a used car lot. It's been real, but it hasn't been fun.
-
-See you never.
+GoDaddy parking records and forwarding junk are automatically skipped. DNS records are created with `proxied: false` by default so your traffic routing doesn't change unexpectedly.
 
 ## License
 
