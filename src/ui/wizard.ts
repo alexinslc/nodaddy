@@ -269,9 +269,11 @@ export async function confirmMigration(
   if (!dryRun) {
     p.note(
       `Each domain transfer includes a 1-year renewal charged at\n` +
-        `Cloudflare's at-cost pricing (e.g. ~$9.15/year for .com).\n` +
-        `Payment is billed to the card on file in your Cloudflare account.\n\n` +
-        `Estimated cost: ${chalk.bold(domainCount)} domain${domainCount === 1 ? '' : 's'} × ~$9–15 each`,
+        `Cloudflare's at-cost pricing. Cost varies by TLD — common\n` +
+        `examples: .com ~$9.15, .net ~$10.50, .org ~$10.00/year.\n` +
+        `Other TLDs may cost more. Check Cloudflare's pricing for details.\n\n` +
+        `Payment is billed to the card on file in your Cloudflare account.\n` +
+        `Domains to transfer: ${chalk.bold(domainCount)}`,
       'Transfer Cost',
     );
   }
